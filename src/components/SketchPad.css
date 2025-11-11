@@ -1,0 +1,431 @@
+.sketch-pad {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: #f5f5f5;
+}
+
+.sketch-toolbar {
+  background-color: #34495e;
+  color: white;
+  padding: 0.65rem 0.85rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+}
+
+.sketch-toolbar-section {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.back-btn {
+  background-color: #95a5a6;
+  color: white;
+  border: none;
+  padding: 0.4rem 0.85rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.back-btn:hover {
+  background-color: #7f8c8d;
+  transform: translateX(-3px);
+}
+
+.sketch-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.tool-selection {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.tool-selection button {
+  background-color: transparent;
+  border: 2px solid #7f8c8d;
+  color: white;
+  padding: 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-size: 1.2rem;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.tool-selection button:hover {
+  background-color: #7f8c8d;
+}
+
+.tool-selection button.active {
+  background-color: #3498db;
+  border-color: #3498db;
+}
+
+.pen-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.pen-controls label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #ecf0f1;
+}
+
+.pen-controls select {
+  background-color: #2c3e50;
+  color: white;
+  border: 1px solid #7f8c8d;
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.3s;
+}
+
+.pen-controls select:hover {
+  background-color: #34495e;
+  border-color: #95a5a6;
+}
+
+.pen-controls select:focus {
+  outline: none;
+  border-color: #3498db;
+}
+
+.pen-controls input[type="color"] {
+  width: 44px;
+  height: 44px;
+  border: 2px solid #7f8c8d;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.pen-controls input[type="color"]:hover {
+  border-color: #3498db;
+  transform: scale(1.05);
+}
+
+.pen-controls input[type="range"] {
+  width: 100px;
+  cursor: pointer;
+}
+
+.size-display {
+  min-width: 45px;
+  text-align: center;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #ecf0f1;
+}
+
+.grid-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 1rem;
+  background-color: rgba(52, 73, 94, 0.5);
+  border-radius: 6px;
+}
+
+.grid-controls label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #ecf0f1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.grid-controls input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+
+.grid-controls select {
+  background-color: #2c3e50;
+  color: white;
+  border: 1px solid #7f8c8d;
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.3s;
+}
+
+.grid-controls select:hover {
+  background-color: #34495e;
+  border-color: #95a5a6;
+}
+
+.grid-controls input[type="range"] {
+  width: 100px;
+  cursor: pointer;
+}
+
+.action-controls {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.action-controls button {
+  background-color: #3498db;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-weight: 600;
+  min-height: 44px;
+}
+
+.action-controls button:hover:not(:disabled) {
+  background-color: #2980b9;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.action-controls button:disabled {
+  background-color: #7f8c8d;
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.clear-btn {
+  background-color: #e74c3c !important;
+}
+
+.clear-btn:hover:not(:disabled) {
+  background-color: #c0392b !important;
+}
+
+.export-btn {
+  background-color: #f39c12 !important;
+}
+
+.export-btn:hover:not(:disabled) {
+  background-color: #e67e22 !important;
+}
+
+.save-sketch-btn {
+  background-color: #27ae60 !important;
+  font-size: 1rem;
+}
+
+.save-sketch-btn:hover:not(:disabled) {
+  background-color: #229954 !important;
+}
+
+.sketch-canvas-wrapper {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem;
+  overflow: auto;
+}
+
+.sketch-canvas {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  cursor: crosshair;
+  touch-action: none;
+}
+
+/* Allow pinch-zoom when in pan mode */
+.sketch-canvas[style*="cursor: grab"] {
+  touch-action: pinch-zoom pan-x pan-y;
+}
+
+/* Tablet Optimizations */
+@media (max-width: 1024px) and (min-width: 768px) {
+  .sketch-toolbar {
+    padding: 1.25rem;
+  }
+
+  .sketch-title {
+    font-size: 1.4rem;
+  }
+
+  .tool-selection button {
+    font-size: 1.4rem;
+    min-width: 52px;
+    min-height: 52px;
+  }
+
+  .pen-controls input[type="color"] {
+    width: 52px;
+    height: 52px;
+  }
+
+  .pen-controls input[type="range"],
+  .grid-controls input[type="range"] {
+    width: 130px;
+    height: 36px;
+  }
+
+  .action-controls button {
+    padding: 0.65rem 1.25rem;
+    font-size: 1.05rem;
+    min-height: 52px;
+  }
+
+  .back-btn {
+    padding: 0.65rem 1.25rem;
+    font-size: 1.05rem;
+    min-height: 52px;
+  }
+
+  .sketch-canvas-wrapper {
+    padding: 1.5rem;
+  }
+}
+
+/* Touch Device Optimizations */
+@media (hover: none) and (pointer: coarse) {
+  .tool-selection button {
+    min-width: 56px;
+    min-height: 56px;
+    font-size: 1.5rem;
+    padding: 0.75rem;
+  }
+
+  .pen-controls input[type="color"] {
+    width: 56px;
+    height: 56px;
+  }
+
+  .pen-controls input[type="range"],
+  .grid-controls input[type="range"] {
+    height: 40px;
+    width: 140px;
+  }
+
+  .pen-controls select,
+  .grid-controls select {
+    padding: 0.6rem 0.8rem;
+    font-size: 1rem;
+    min-height: 48px;
+  }
+
+  .grid-controls input[type="checkbox"] {
+    width: 24px;
+    height: 24px;
+  }
+
+  .action-controls button {
+    padding: 0.75rem 1.5rem;
+    font-size: 1.1rem;
+    min-height: 56px;
+  }
+
+  .back-btn {
+    padding: 0.75rem 1.5rem;
+    font-size: 1.1rem;
+    min-height: 56px;
+  }
+
+  .sketch-canvas {
+    border-radius: 12px;
+  }
+}
+
+/* Mobile Responsive */
+@media (max-width: 767px) {
+  .sketch-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 1rem;
+    gap: 1rem;
+  }
+
+  .sketch-toolbar-section {
+    justify-content: center;
+  }
+
+  .sketch-title {
+    font-size: 1.2rem;
+  }
+
+  .pen-controls,
+  .grid-controls {
+    justify-content: center;
+  }
+
+  .action-controls {
+    justify-content: center;
+  }
+
+  .sketch-canvas-wrapper {
+    padding: 1rem;
+  }
+
+  .sketch-canvas {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .sketch-toolbar-section {
+    width: 100%;
+  }
+
+  .pen-controls,
+  .grid-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pen-controls input[type="range"],
+  .grid-controls input[type="range"] {
+    width: 100%;
+    max-width: 200px;
+  }
+
+  .action-controls {
+    flex-direction: column;
+  }
+
+  .action-controls button {
+    width: 100%;
+  }
+}
+
+/* Tablet Landscape */
+@media (max-width: 1024px) and (min-width: 768px) and (orientation: landscape) {
+  .sketch-toolbar {
+    padding: 0.85rem 1rem;
+  }
+
+  .sketch-title {
+    font-size: 1.2rem;
+  }
+
+  .sketch-canvas-wrapper {
+    padding: 1rem;
+  }
+}

@@ -1,0 +1,187 @@
+// PWA Install Prompt Handler
+
+let deferredPrompt: any = null;
+
+// Listen for the beforeinstallprompt event
+window.addEventListener('beforeinstallprompt', (e) => {
+  // Prevent the mini-infobar from appearing on mobile
+  e.preventDefault();
+  // Stash the event so it can be triggered later
+  deferredPrompt = e;
+  console.log('PWA install prompt available');
+  
+  // Show install button or banner
+  showInstallBanner();
+});
+
+// Show install banner
+function showInstallBanner() {
+  // Create install banner if it doesn't exist
+  if (document.getElementById('pwa-install-banner')) return;
+  
+  const banner = document.createElement('div');
+  banner.id = 'pwa-install-banner';
+  banner.style.cssText = `
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 1rem 2rem;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    animation: slideUp 0.3s ease;
+    max-width: 90%;
+  `;
+  
+  banner.innerHTML = `
+    <style>
+      @keyframes slideUp {
+        from {
+          transform: translateX(-50%) translateY(100px);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(-50%) translateY(0);
+          opacity: 1;
+        }
+      }
+    </style>
+    <span style="font-size: 1.5rem;">📱</span>
+    <div style="flex: 1;">
+      <div style="font-weight: 600; font-size: 1rem;">Install App</div>
+      <div style="font-size: 0.85rem; opacity: 0.9;">Add to your home screen for better experience</div>
+    </div>
+    <button id="pwa-install-btn" style="
+      background: white;
+      color: #667eea;
+      border: none;
+      padding: 0.6rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 0.95rem;
+    ">Install</button>
+    <button id="pwa-dismiss-btn" style="
+      background: transparent;
+      color: white;
+      border: 1px solid rgba(255,255,255,0.5);
+      padding: 0.6rem 1rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.95rem;
+    ">Not Now</button>
+  `;
+  
+  document.body.appendChild(banner);
+  
+  // Handle install button click
+  document.getElementById('pwa-install-btn')?.addEventListener('click', installPWA);
+  
+  // Handle dismiss button click
+  document.getElementById('pwa-dismiss-btn')?.addEventListener('click', () => {
+    banner.remove();
+  });
+}
+
+// Install PWA
+async function installPWA() {
+  if (!deferredPrompt) {
+    console.log('Install prompt not available');
+    return;
+  }
+  
+  // Show the install prompt
+  deferredPrompt.prompt();
+  
+  // Wait for the user to respond to the prompt
+  const { outcome } = await deferredPrompt.userChoice;
+  console.log(`User response to the install prompt: ${outcome}`);
+  
+  // Clear the deferredPrompt
+  deferredPrompt = null;
+  
+  // Remove the banner
+  document.getElementById('pwa-install-banner')?.remove();
+}
+
+// Listen for app installed event
+window.addEventListener('appinstalled', () => {
+  console.log('PWA was installed successfully');
+  deferredPrompt = null;
+  document.getElementById('pwa-install-banner')?.remove();
+});
+
+// Check if app is running in standalone mode
+export function isStandalone(): boolean {
+  return window.matchMedia('(display-mode: standalone)').matches ||
+         (window.navigator as any).standalone ||
+         document.referrer.includes('android-app://');
+}
+
+// Show install instructions for iOS
+export function showIOSInstallInstructions() {
+  if (isIOSDevice() && !isStandalone()) {
+    const instructions = document.createElement('div');
+    instructions.style.cssText = `
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: white;
+      color: #2c3e50;
+      padding: 1.5rem;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+      z-index: 10000;
+      max-width: 90%;
+      text-align: center;
+    `;
+    
+    instructions.innerHTML = `
+      <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 0.5rem;">Install on iOS</div>
+      <div style="font-size: 0.9rem; margin-bottom: 1rem;">
+        Tap <strong>Share</strong> <span style="font-size: 1.2rem;">⬆️</span> then <strong>Add to Home Screen</strong> 
+        <span style="font-size: 1.2rem;">➕</span>
+      </div>
+      <button onclick="this.parentElement.remove()" style="
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 0.6rem 1.5rem;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+      ">Got it!</button>
+    `;
+    
+    document.body.appendChild(instructions);
+    
+    // Auto-dismiss after 10 seconds
+    setTimeout(() => {
+      instructions.remove();
+    }, 10000);
+  }
+}
+
+// Check if iOS device
+function isIOSDevice(): boolean {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+}
+
+// Initialize PWA features
+export function initPWA() {
+  console.log('PWA features initialized');
+  console.log('Is standalone:', isStandalone());
+  
+  // Show iOS instructions after a delay
+  setTimeout(() => {
+    showIOSInstallInstructions();
+  }, 3000);
+}
+

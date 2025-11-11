@@ -1,0 +1,27 @@
+.text-annotation {
+  user-select: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-width: 300px;
+  transition: all 0.2s;
+  z-index: 10;
+}
+
+.text-annotation:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transform: scale(1.02);
+}
+
+.text-annotation:active {
+  cursor: move;
+}
+
+/* Tablet and touch optimizations */
+@media (hover: none) and (pointer: coarse) {
+  .text-annotation {
+    padding: 4px 6px !important;
+    min-height: 32px;
+    min-width: 32px;
+  }
+}
+
