@@ -22,7 +22,7 @@ interface DrawingCanvasProps {
   width: number;
   height: number;
   scale: number;
-  tool: 'pen' | 'eraser';
+  tool: 'pen' | 'eraser' | 'pan';
   penColor: string;
   penSize: number;
   penStyle: PenStyle;
@@ -30,6 +30,7 @@ interface DrawingCanvasProps {
   onPathDrawn: (path: DrawingPath) => void;
   onPathErased: (pathId: string) => void;
   paths: DrawingPath[];
+  onPan?: (deltaX: number, deltaY: number) => void;
 }
 
 const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
@@ -44,11 +45,14 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
   onPathDrawn,
   onPathErased,
   paths,
+  onPan,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentPath, setCurrentPath] = useState<DrawingPath | null>(null);
   const [isErasing, setIsErasing] = useState(false);
+  const [isPanning, setIsPanning] = useState(false);
+  const [lastPanPoint, setLastPanPoint] = useState<Point | null>(null);
 
   // Redraw all paths when paths change or canvas dimensions change
   useEffect(() => {
@@ -65,21 +69,27 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Set canvas size with high DPI support
+    // Set canvas size with high DPI support for crisp rendering
     const dpr = window.devicePixelRatio || 1;
+
+    // Set the actual canvas resolution (backing store)
     canvas.width = width * scale * dpr;
     canvas.height = height * scale * dpr;
 
-    // Set canvas display size
+    // Set canvas display size (CSS size)
     canvas.style.width = `${width * scale}px`;
     canvas.style.height = `${height * scale}px`;
 
-    // Scale context to account for device pixel ratio
+    // Scale context to account for device pixel ratio and drawing scale
     ctx.scale(dpr, dpr);
 
-    // Enable anti-aliasing and smoothing
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
+    // Configure for crisp rendering - disable smoothing for sharp lines
+    ctx.imageSmoothingEnabled = false; // Disable smoothing for sharp, crisp lines
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // Set global composite operation for better blending
+    ctx.globalCompositeOperation = 'source-over';
 
     // Configure canvas for Arabic support
     ctx.textAlign = 'start';
@@ -98,40 +108,48 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     const opacity = path.opacity !== undefined ? path.opacity : 1;
 
     ctx.save();
-    // Note: ctx is already scaled by DPI in the main useEffect
-    // We only need to scale for the PDF zoom level
+    // Context is scaled by DPI in the main useEffect
+    // We need to scale by the PDF zoom level to match the stored coordinates
     ctx.scale(scale, scale);
+
+    console.log('Drawing path:', {
+      id: path.id,
+      pointsCount: path.points.length,
+      firstPoint: path.points[0],
+      scale: scale
+    });
     ctx.strokeStyle = path.tool === 'eraser' ? '#ffffff' : path.color;
     ctx.fillStyle = path.tool === 'eraser' ? '#ffffff' : path.color;
     ctx.globalCompositeOperation = path.tool === 'eraser' ? 'destination-out' : 'source-over';
-    ctx.globalAlpha = opacity;
 
     // Configure pen style characteristics and dispatch to appropriate renderer
+    // Each drawing function handles its own opacity internally
     if (pathStyle === 'fountain') {
-      drawFountainPenPath(ctx, path);
+      drawFountainPenPath(ctx, path, opacity);
     } else if (pathStyle === 'ballpoint') {
-      drawBallpointPath(ctx, path);
+      drawBallpointPath(ctx, path, opacity);
     } else if (pathStyle === 'brush') {
-      drawBrushPath(ctx, path);
+      drawBrushPath(ctx, path, opacity);
     } else if (pathStyle === 'pencil') {
-      drawPencilPath(ctx, path);
+      drawPencilPath(ctx, path, opacity);
     } else if (pathStyle === 'highlighter') {
-      drawHighlighterPath(ctx, path);
+      drawHighlighterPath(ctx, path, opacity);
     } else if (pathStyle === 'calligraphy') {
       // Calligraphy: variable width based on stroke direction
-      drawCalligraphyPath(ctx, path);
+      drawCalligraphyPath(ctx, path, opacity);
     } else if (pathStyle === 'drawing') {
       // Drawing: add texture with multiple overlapping strokes
-      drawDrawingPath(ctx, path);
+      drawDrawingPath(ctx, path, opacity);
     } else {
       // Writing: smooth, consistent stroke
-      drawWritingPath(ctx, path);
+      drawWritingPath(ctx, path, opacity);
     }
 
     ctx.restore();
   };
 
-  const drawWritingPath = (ctx: CanvasRenderingContext2D, path: DrawingPath) => {
+  const drawWritingPath = (ctx: CanvasRenderingContext2D, path: DrawingPath, opacity: number) => {
+    ctx.globalAlpha = opacity;
     ctx.lineWidth = path.size;
     ctx.beginPath();
 
@@ -159,7 +177,8 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     }
   };
 
-  const drawDrawingPath = (ctx: CanvasRenderingContext2D, path: DrawingPath) => {
+  const drawDrawingPath = (ctx: CanvasRenderingContext2D, path: DrawingPath, opacity: number) => {
+    ctx.globalAlpha = opacity;
     // Drawing style: create texture with multiple slightly offset strokes
     const baseWidth = path.size;
     const numStrokes = 3;
@@ -197,7 +216,8 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     ctx.globalAlpha = 1.0;
   };
 
-  const drawCalligraphyPath = (ctx: CanvasRenderingContext2D, path: DrawingPath) => {
+  const drawCalligraphyPath = (ctx: CanvasRenderingContext2D, path: DrawingPath, opacity: number) => {
+    ctx.globalAlpha = opacity;
     // Calligraphy: elegant brush strokes with variable width
     if (path.points.length < 2) return;
 
@@ -254,30 +274,35 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
 
   // ✨ NEW PEN STYLES ✨
 
-  const drawFountainPenPath = (ctx: CanvasRenderingContext2D, path: DrawingPath) => {
-    // Fountain Pen: Pressure-sensitive with fluid ink flow for elegant handwriting
+  const drawFountainPenPath = (ctx: CanvasRenderingContext2D, path: DrawingPath, opacity: number) => {
+    // Fountain Pen: Elegant, flowing strokes with distinctive ink characteristics
     if (path.points.length < 1) return;
 
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // Single point - draw a dot with slight ink spread
+    // Single point - elegant ink drop
     if (path.points.length === 1) {
       const pressure = path.pressure?.[0] || 0.5;
-      const size = path.size * (0.7 + pressure * 0.8); // Pressure affects size
-      
-      // Draw ink blob with slight feathering
-      ctx.globalAlpha = (path.opacity || 1) * 0.9;
+      const size = path.size * (0.8 + pressure * 0.6);
+
+      // Main ink drop with elegant shape
+      ctx.globalAlpha = opacity * 0.95;
       ctx.beginPath();
-      ctx.arc(path.points[0].x, path.points[0].y, size / 2, 0, Math.PI * 2);
+      ctx.ellipse(path.points[0].x, path.points[0].y, size / 2.2, size / 1.8, 0, 0, Math.PI * 2);
       ctx.fill();
-      
-      // Add subtle ink spread
-      ctx.globalAlpha = (path.opacity || 1) * 0.3;
+
+      // Add distinctive fountain pen ink spread
+      ctx.globalAlpha = opacity * 0.4;
       ctx.beginPath();
-      ctx.arc(path.points[0].x, path.points[0].y, size / 1.5, 0, Math.PI * 2);
+      ctx.ellipse(path.points[0].x, path.points[0].y, size / 1.2, size / 2.5, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.globalAlpha = path.opacity || 1;
+
+      // Small ink fleck for character
+      ctx.globalAlpha = opacity * 0.6;
+      ctx.beginPath();
+      ctx.arc(path.points[0].x + size * 0.3, path.points[0].y - size * 0.2, size / 6, 0, Math.PI * 2);
+      ctx.fill();
       return;
     }
 
@@ -329,69 +354,93 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     ctx.globalAlpha = path.opacity || 1;
   };
 
-  const drawBallpointPath = (ctx: CanvasRenderingContext2D, path: DrawingPath) => {
-    // Ballpoint Pen: Consistent line width for everyday writing
+  const drawBallpointPath = (ctx: CanvasRenderingContext2D, path: DrawingPath, opacity: number) => {
+    // Ballpoint Pen: Bold, consistent lines with slight ink bleed effect
     if (path.points.length < 1) return;
 
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.lineWidth = path.size;
 
-    // Single point
+    // Single point - distinctive ballpoint dot
     if (path.points.length === 1) {
+      // Main ink dot
+      ctx.globalAlpha = opacity * 0.9;
       ctx.beginPath();
-      ctx.arc(path.points[0].x, path.points[0].y, path.size / 2, 0, Math.PI * 2);
+      ctx.arc(path.points[0].x, path.points[0].y, path.size / 2.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Ink bleed halo (ballpoint characteristic)
+      ctx.globalAlpha = opacity * 0.4;
+      ctx.beginPath();
+      ctx.arc(path.points[0].x, path.points[0].y, path.size / 1.6, 0, Math.PI * 2);
       ctx.fill();
       return;
     }
 
-    // Smooth consistent line with slight texture
+    // Bold, consistent stroke with subtle texture
+    ctx.lineWidth = path.size * 1.1; // Slightly thicker than base size
+    ctx.globalAlpha = opacity * 0.95;
+
     ctx.beginPath();
     ctx.moveTo(path.points[0].x, path.points[0].y);
-    
+
     for (let i = 0; i < path.points.length - 1; i++) {
       const p0 = path.points[Math.max(0, i - 1)];
       const p1 = path.points[i];
       const p2 = path.points[i + 1];
       const p3 = path.points[Math.min(path.points.length - 1, i + 2)];
-      
+
       const cp1x = p1.x + (p2.x - p0.x) / 6;
       const cp1y = p1.y + (p2.y - p0.y) / 6;
       const cp2x = p2.x - (p3.x - p1.x) / 6;
       const cp2y = p2.y - (p3.y - p1.y) / 6;
-      
+
       ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
     }
     ctx.stroke();
 
-    // Add subtle ink texture (ballpoint characteristic)
-    ctx.globalAlpha = (path.opacity || 1) * 0.15;
-    ctx.lineWidth = path.size * 0.6;
+    // Add characteristic ballpoint ink bleed along the stroke
+    ctx.globalAlpha = opacity * 0.25;
+    ctx.lineWidth = path.size * 1.4;
     ctx.beginPath();
     ctx.moveTo(path.points[0].x, path.points[0].y);
     for (let i = 1; i < path.points.length; i++) {
       ctx.lineTo(path.points[i].x, path.points[i].y);
     }
     ctx.stroke();
-    ctx.globalAlpha = path.opacity || 1;
   };
 
-  const drawBrushPath = (ctx: CanvasRenderingContext2D, path: DrawingPath) => {
-    // Brush Pen: Dynamic stroke thickness for expressive writing or art
+  const drawBrushPath = (ctx: CanvasRenderingContext2D, path: DrawingPath, opacity: number) => {
+    // Brush Pen: Dramatic pressure-sensitive strokes with brush bristle effects
     if (path.points.length < 1) return;
 
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // Single point - brush blob
+    // Single point - distinctive brush dab with bristles
     if (path.points.length === 1) {
       const pressure = path.pressure?.[0] || 0.5;
-      const size = path.size * (0.3 + pressure * 1.5); // High pressure variation
-      
-      ctx.globalAlpha = (path.opacity || 1) * 0.85;
+      const size = path.size * (0.4 + pressure * 2.0); // Very high pressure variation
+
+      // Main brush dab
+      ctx.globalAlpha = opacity * 0.9;
       ctx.beginPath();
-      ctx.arc(path.points[0].x, path.points[0].y, size / 2, 0, Math.PI * 2);
+      ctx.ellipse(path.points[0].x, path.points[0].y, size / 2.5, size / 1.8, Math.PI / 6, 0, Math.PI * 2);
       ctx.fill();
+
+      // Add bristle marks for brush character
+      ctx.globalAlpha = opacity * 0.7;
+      for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2;
+        const distance = size * (0.3 + Math.random() * 0.4);
+        const bristleX = path.points[0].x + Math.cos(angle) * distance;
+        const bristleY = path.points[0].y + Math.sin(angle) * distance;
+
+        ctx.beginPath();
+        ctx.arc(bristleX, bristleY, size / 8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
       ctx.globalAlpha = path.opacity || 1;
       return;
     }
@@ -454,40 +503,49 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     ctx.globalAlpha = path.opacity || 1;
   };
 
-  const drawPencilPath = (ctx: CanvasRenderingContext2D, path: DrawingPath) => {
-    // Pencil: Textured strokes ideal for sketching and shading
+  const drawPencilPath = (ctx: CanvasRenderingContext2D, path: DrawingPath, opacity: number) => {
+    // Pencil: Rough, grainy strokes with wood texture and graphite characteristics
     if (path.points.length < 1) return;
 
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // Single point - pencil mark
+    // Single point - rough graphite mark with wood grain
     if (path.points.length === 1) {
       const pressure = path.pressure?.[0] || 0.5;
-      const size = path.size * (0.6 + pressure * 0.7);
-      
-      // Draw grainy pencil mark
-      for (let j = 0; j < 5; j++) {
-        const offset = (Math.random() - 0.5) * size * 0.3;
-        ctx.globalAlpha = (path.opacity || 1) * (0.3 + Math.random() * 0.4);
+      const size = path.size * (0.7 + pressure * 0.8);
+
+      // Main graphite mark
+      ctx.globalAlpha = opacity * 0.8;
+      ctx.beginPath();
+      ctx.ellipse(path.points[0].x, path.points[0].y, size / 2.8, size / 2.2, Math.PI / 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Add wood grain texture particles
+      ctx.globalAlpha = opacity * 0.6;
+      for (let j = 0; j < 12; j++) {
+        const angle = Math.random() * Math.PI * 2;
+        const distance = Math.random() * size * 0.8;
+        const particleX = path.points[0].x + Math.cos(angle) * distance;
+        const particleY = path.points[0].y + Math.sin(angle) * distance;
+
         ctx.beginPath();
-        ctx.arc(
-          path.points[0].x + offset,
-          path.points[0].y + offset,
-          size / 2.5,
-          0,
-          Math.PI * 2
-        );
+        ctx.arc(particleX, particleY, size / 12 + Math.random() * size / 8, 0, Math.PI * 2);
         ctx.fill();
       }
-      ctx.globalAlpha = path.opacity || 1;
+
+      // Add graphite sheen
+      ctx.globalAlpha = opacity * 0.3;
+      ctx.beginPath();
+      ctx.ellipse(path.points[0].x, path.points[0].y, size / 1.8, size / 3.5, Math.PI / 3, 0, Math.PI * 2);
+      ctx.fill();
       return;
     }
 
     // Create pencil texture with multiple overlapping strokes
     const numLayers = 4;
     for (let layer = 0; layer < numLayers; layer++) {
-      ctx.globalAlpha = (path.opacity || 1) * (0.15 + layer * 0.15);
+      ctx.globalAlpha = opacity * (0.15 + layer * 0.15);
       
       for (let i = 0; i < path.points.length - 1; i++) {
         const p1 = path.points[i];
@@ -510,25 +568,46 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     ctx.globalAlpha = path.opacity || 1;
   };
 
-  const drawHighlighterPath = (ctx: CanvasRenderingContext2D, path: DrawingPath) => {
-    // Highlighter: Semi-transparent ink for marking text
+  const drawHighlighterPath = (ctx: CanvasRenderingContext2D, path: DrawingPath, opacity: number) => {
+    // Highlighter: Bright, fluorescent ink with chisel tip and glow effect
     if (path.points.length < 1) return;
 
     ctx.lineCap = 'butt'; // Flat ends like a chisel tip
     ctx.lineJoin = 'miter';
-    
-    // Highlighters are always semi-transparent
-    const highlighterOpacity = Math.min((path.opacity || 0.4), 0.5);
 
-    // Single point - highlighter mark
+    // Highlighters are bright and fluorescent
+    const highlighterOpacity = Math.min(opacity, 0.7);
+
+    // Single point - chisel-tip highlighter mark with glow
     if (path.points.length === 1) {
+      // Main bright highlighter mark
       ctx.globalAlpha = highlighterOpacity;
+      ctx.fillStyle = path.color; // Use the selected color
       ctx.fillRect(
-        path.points[0].x - path.size / 2,
-        path.points[0].y - path.size / 4,
-        path.size,
-        path.size / 2
+        path.points[0].x - path.size / 2.2,
+        path.points[0].y - path.size / 6,
+        path.size * 1.1,
+        path.size / 3
       );
+
+      // Add fluorescent glow effect
+      ctx.globalAlpha = highlighterOpacity * 0.4;
+      ctx.fillRect(
+        path.points[0].x - path.size / 1.8,
+        path.points[0].y - path.size / 4,
+        path.size * 1.4,
+        path.size / 2.2
+      );
+
+      // Add bright center highlight
+      ctx.globalAlpha = highlighterOpacity * 0.8;
+      ctx.fillRect(
+        path.points[0].x - path.size / 3,
+        path.points[0].y - path.size / 8,
+        path.size / 1.5,
+        path.size / 6
+      );
+
       ctx.globalAlpha = path.opacity || 1;
       return;
     }
@@ -596,7 +675,7 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
       points: [point],
       color: penColor,
       size: penSize,
-      tool: tool,
+      tool: tool === 'pan' ? 'pen' : tool, // Convert pan to pen for drawing paths
       penStyle: penStyle,
       opacity: penOpacity,
       pressure: [pressure],
@@ -759,11 +838,18 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
 
   const stopDrawing = useCallback(() => {
     if (isDrawing && currentPath) {
+      console.log('Finishing drawing path:', {
+        id: currentPath.id,
+        pointsCount: currentPath.points.length,
+        firstPoint: currentPath.points[0],
+        lastPoint: currentPath.points[currentPath.points.length - 1],
+        scale: scale
+      });
       onPathDrawn(currentPath);
     }
     setIsDrawing(false);
     setCurrentPath(null);
-  }, [isDrawing, currentPath, onPathDrawn]);
+  }, [isDrawing, currentPath, onPathDrawn, scale]);
 
   // Handle eraser tool for existing paths
   const handleEraserStart = useCallback((event: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement> | React.PointerEvent<HTMLCanvasElement>) => {
@@ -809,6 +895,10 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
   const handlePointerDown = useCallback((event: React.PointerEvent<HTMLCanvasElement>) => {
     if (tool === 'eraser') {
       handleEraserStart(event);
+    } else if (tool === 'pan') {
+      event.preventDefault();
+      setIsPanning(true);
+      setLastPanPoint(getCanvasCoordinates(event));
     } else {
       startDrawing(event);
     }
@@ -817,14 +907,24 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
   const handlePointerMove = useCallback((event: React.PointerEvent<HTMLCanvasElement>) => {
     if (tool === 'eraser') {
       handleEraserMove(event);
+    } else if (tool === 'pan' && isPanning && lastPanPoint && onPan) {
+      event.preventDefault();
+      const currentPoint = getCanvasCoordinates(event);
+      const deltaX = currentPoint.x - lastPanPoint.x;
+      const deltaY = currentPoint.y - lastPanPoint.y;
+      onPan(deltaX, deltaY);
+      setLastPanPoint(currentPoint);
     } else {
       continueDrawing(event);
     }
-  }, [tool, handleEraserMove, continueDrawing]);
+  }, [tool, handleEraserMove, continueDrawing, isPanning, lastPanPoint, onPan]);
 
   const handlePointerUp = useCallback(() => {
     if (tool === 'eraser') {
       handleEraserEnd();
+    } else if (tool === 'pan') {
+      setIsPanning(false);
+      setLastPanPoint(null);
     } else {
       stopDrawing();
     }
@@ -844,7 +944,7 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
         position: 'absolute',
         top: 0,
         left: 0,
-        cursor: tool === 'eraser' ? 'not-allowed' : 'crosshair',
+        cursor: tool === 'eraser' ? 'not-allowed' : tool === 'pan' ? 'grab' : 'crosshair',
         pointerEvents: 'auto',
         touchAction: 'none', // Prevent default touch behaviors
       }}

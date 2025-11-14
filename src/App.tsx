@@ -8,6 +8,7 @@ import SketchGallery from './components/SketchGallery';
 import type { DrawingPath, PenStyle } from './components/DrawingCanvas';
 import type { TextAnnotation } from './components/TextAnnotation';
 import { addToRecentFiles, saveAnnotatedFile } from './utils/fileStorage';
+import { isStandalone } from './pwaInstall';
 import type { Sketch } from './utils/sketchStorage';
 import { saveSketch } from './utils/sketchStorage';
 import { getPenFavorites, savePenFavorite, deletePenFavorite, type PenFavorite } from './utils/penFavorites';
@@ -18,11 +19,12 @@ function App() {
   const [currentPage, setCurrentPage] = useState(1);
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageInput, setPageInput] = useState('1');
-  const [scale, setScale] = useState(1.0);
+  const [scale, setScale] = useState(1.5);
   const [pdfDimensions, setPdfDimensions] = useState<{ width: number; height: number } | null>(null);
+  const [scrollPosition, setScrollPosition] = useState({ x: 0, y: 0 });
 
   // Drawing state
-  const [drawingTool, setDrawingTool] = useState<'pen' | 'eraser' | 'text'>('pen');
+  const [drawingTool, setDrawingTool] = useState<'pen' | 'eraser' | 'text' | 'pan'>('pen');
   const [penColor, setPenColor] = useState('#000000');
   const [penSize, setPenSize] = useState(2);
   const [penStyle, setPenStyle] = useState<PenStyle>('writing');
@@ -46,11 +48,12 @@ function App() {
   const [isRTL, setIsRTL] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
 
-  // Header visibility state
-  const [isHeaderHidden, setIsHeaderHidden] = useState(false);
   
   // Toolbar visibility state
   const [isToolbarHidden, setIsToolbarHidden] = useState(false);
+
+  // Manual zoom tracking
+  const [hasManualZoom, setHasManualZoom] = useState(false);
   
   // File history
   const [showFileHistory, setShowFileHistory] = useState(false);
@@ -67,10 +70,45 @@ function App() {
   // Shape recognition
   const [shapeRecognitionEnabled, setShapeRecognitionEnabled] = useState(true);
 
+  // PDF view expansion state
+  const [isExpandedView, setIsExpandedView] = useState(false);
+
+  // Hamburger menu state
+  const [isHamburgerMenuOpen, setIsHamburgerMenuOpen] = useState(false);
+
   // Handle RTL direction changes
   useEffect(() => {
     document.body.className = isRTL ? 'rtl' : '';
   }, [isRTL]);
+
+  // Auto-scale PDF to fit available height (only when user hasn't manually zoomed)
+  useEffect(() => {
+    const updateScale = () => {
+      if (pdfDimensions && pdfFile && !hasManualZoom) {
+        // Calculate available height (viewport - header - toolbar - padding)
+        const viewportHeight = window.innerHeight;
+        const headerHeight = 40; // Header is always visible
+        const toolbarHeight = isToolbarHidden ? 0 : 50;
+        const padding = isExpandedView ? 10 : 40; // Reduced padding in expanded view
+
+        let availableHeight = viewportHeight - headerHeight - toolbarHeight - padding;
+
+        // In expanded view, use more of the available height
+        const fillPercentage = isExpandedView ? 0.98 : 0.90;
+        const optimalScale = (availableHeight * fillPercentage) / pdfDimensions.height;
+
+        // Clamp between 0.5 and 10.0 for expanded view, 0.5-5.0 for normal view (auto-scaling limits)
+        // Users can manually zoom up to 15.0x beyond these auto-scale limits
+        const maxScale = isExpandedView ? 10.0 : 5.0;
+        const newScale = Math.max(1.0, Math.min(maxScale, optimalScale));
+        setScale(newScale);
+      }
+    };
+
+    updateScale();
+    window.addEventListener('resize', updateScale);
+    return () => window.removeEventListener('resize', updateScale);
+  }, [pdfDimensions, pdfFile, isExpandedView, hasManualZoom]);
 
   // Load pen favorites on mount
   useEffect(() => {
@@ -114,9 +152,6 @@ function App() {
     }
   };
 
-  const toggleHeader = () => {
-    setIsHeaderHidden(!isHeaderHidden);
-  };
 
   const toggleToolbar = () => {
     setIsToolbarHidden(!isToolbarHidden);
@@ -133,6 +168,7 @@ function App() {
     setAllPageAnnotations(new Map()); // Reset all page annotations
     setAllPageTextAnnotations(new Map()); // Reset all text annotations
     setPdfDimensions(null);
+    setHasManualZoom(false); // Reset manual zoom flag for new PDF
     setShowFileHistory(false); // Close file history modal
     setMode('pdf'); // Switch to PDF mode
     
@@ -288,13 +324,17 @@ function App() {
               event.preventDefault();
               setDrawingTool('text');
               break;
-            case 'h':
+            case 'm':
               event.preventDefault();
-              toggleHeader();
+              setDrawingTool('pan');
               break;
             case 'b':
               event.preventDefault();
               toggleToolbar();
+              break;
+            case 'f':
+              event.preventDefault();
+              setIsExpandedView(prev => !prev);
               break;
         }
       }
@@ -320,6 +360,7 @@ function App() {
     const newPage = Math.max(currentPage - 1, 1);
     setCurrentPage(newPage);
     setPageInput(String(newPage));
+    setScrollPosition({ x: 0, y: 0 }); // Reset scroll position
     loadPageAnnotations(newPage);
   };
 
@@ -329,16 +370,18 @@ function App() {
     const newPage = Math.min(currentPage + 1, numPages || 1);
     setCurrentPage(newPage);
     setPageInput(String(newPage));
+    setScrollPosition({ x: 0, y: 0 }); // Reset scroll position
     loadPageAnnotations(newPage);
   };
 
   const goToPage = (page: number) => {
     if (!numPages || page < 1 || page > numPages) return;
-    
+
     // Save current page annotations before switching
     saveCurrentPageAnnotations();
     setCurrentPage(page);
     setPageInput(String(page));
+    setScrollPosition({ x: 0, y: 0 }); // Reset scroll position
     loadPageAnnotations(page);
   };
 
@@ -399,17 +442,204 @@ function App() {
   };
 
   const handleTextUpdate = (id: string, text: string) => {
-    setTextAnnotations(prev => 
+    setTextAnnotations(prev =>
       prev.map(a => a.id === id ? { ...a, text } : a)
     );
   };
 
+  const handleTextMove = (id: string, x: number, y: number) => {
+    setTextAnnotations(prev =>
+      prev.map(a => a.id === id ? { ...a, x, y } : a)
+    );
+  };
+
+  const handlePWAInstall = () => {
+    // Create a manual install prompt
+    const banner = document.createElement('div');
+    banner.id = 'manual-pwa-install-banner';
+    banner.style.cssText = `
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 1rem 2rem;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+      z-index: 10001;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      animation: slideUp 0.3s ease;
+      max-width: 90%;
+    `;
+
+    banner.innerHTML = `
+      <style>
+        @keyframes slideUp {
+          from {
+            transform: translateX(-50%) translateY(100px);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+          }
+        }
+      </style>
+      <span style="font-size: 1.5rem;">📱</span>
+      <div style="flex: 1;">
+        <div style="font-weight: 600; font-size: 1rem;">Install App</div>
+        <div style="font-size: 0.85rem; opacity: 0.9;">Get the full app experience</div>
+      </div>
+      <button id="manual-pwa-install-btn" style="
+        background: white;
+        color: #667eea;
+        border: none;
+        padding: 0.6rem 1.5rem;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        font-size: 0.95rem;
+      ">Install</button>
+      <button id="manual-pwa-dismiss-btn" style="
+        background: transparent;
+        color: white;
+        border: 1px solid rgba(255,255,255,0.5);
+        padding: 0.6rem 1rem;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 0.95rem;
+      ">Later</button>
+    `;
+
+    document.body.appendChild(banner);
+
+    // Handle install button click
+    document.getElementById('manual-pwa-install-btn')?.addEventListener('click', () => {
+      // Try to trigger the install prompt
+      const installEvent = (window as any).deferredPrompt;
+      if (installEvent) {
+        installEvent.prompt();
+        installEvent.userChoice.then((choice: any) => {
+          console.log('User choice:', choice.outcome);
+          (window as any).deferredPrompt = null;
+          banner.remove();
+        });
+      } else {
+        // Fallback: show browser-specific instructions
+        showInstallInstructions();
+        banner.remove();
+      }
+    });
+
+    // Handle dismiss button click
+    document.getElementById('manual-pwa-dismiss-btn')?.addEventListener('click', () => {
+      banner.remove();
+    });
+  };
+
+  const showInstallInstructions = () => {
+    const instructions = document.createElement('div');
+    instructions.style.cssText = `
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: white;
+      color: #2c3e50;
+      padding: 1.5rem;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+      z-index: 10001;
+      max-width: 90%;
+      text-align: center;
+    `;
+
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
+
+    if (isIOS) {
+      instructions.innerHTML = `
+        <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 0.5rem;">Install on iOS</div>
+        <div style="font-size: 0.9rem; margin-bottom: 1rem;">
+          Tap <strong>Share</strong> <span style="font-size: 1.2rem;">⬆️</span> then <strong>Add to Home Screen</strong>
+          <span style="font-size: 1.2rem;">➕</span>
+        </div>
+        <button onclick="this.parentElement.remove()" style="
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          border: none;
+          padding: 0.6rem 1.5rem;
+          border-radius: 8px;
+          font-weight: 600;
+          cursor: pointer;
+        ">Got it!</button>
+      `;
+    } else if (isChrome) {
+      instructions.innerHTML = `
+        <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 0.5rem;">Install on Chrome</div>
+        <div style="font-size: 0.9rem; margin-bottom: 1rem;">
+          Look for the install icon <span style="font-size: 1.2rem;">📱</span> in the address bar, or click the menu (⋮) and select "Install"
+        </div>
+        <button onclick="this.parentElement.remove()" style="
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          border: none;
+          padding: 0.6rem 1.5rem;
+          border-radius: 8px;
+          font-weight: 600;
+          cursor: pointer;
+        ">Got it!</button>
+      `;
+    } else {
+      instructions.innerHTML = `
+        <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 0.5rem;">Browser Installation</div>
+        <div style="font-size: 0.9rem; margin-bottom: 1rem;">
+          Look for an install prompt from your browser, or check the menu for installation options.
+        </div>
+        <button onclick="this.parentElement.remove()" style="
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          border: none;
+          padding: 0.6rem 1.5rem;
+          border-radius: 8px;
+          font-weight: 600;
+          cursor: pointer;
+        ">Got it!</button>
+      `;
+    }
+
+    document.body.appendChild(instructions);
+
+    // Auto-dismiss after 10 seconds
+    setTimeout(() => {
+      instructions.remove();
+    }, 10000);
+  };
+
   const zoomIn = () => {
-    setScale(prev => Math.min(prev + 0.25, 3.0));
+    setHasManualZoom(true);
+    setScale(prev => Math.min(prev + 0.25, 15.0)); // Increased max zoom to 15x
   };
 
   const zoomOut = () => {
+    setHasManualZoom(true);
     setScale(prev => Math.max(prev - 0.25, 0.5));
+  };
+
+  const handlePan = (deltaX: number, deltaY: number) => {
+    setScrollPosition(prev => ({
+      x: prev.x + deltaX,
+      y: prev.y + deltaY,
+    }));
+  };
+
+  const handleAutoScrollNext = () => {
+    if (currentPage < (numPages || 1)) {
+      goToNextPage();
+    }
   };
 
   const handleSavePDF = async () => {
@@ -484,18 +714,18 @@ function App() {
 
   return (
     <div className="app">
-      <header className={`app-header ${isHeaderHidden ? 'header-hidden' : ''}`}>
+      <header className="app-header">
         <h1>PDF Note Taking & Sketch App</h1>
         {mode === 'home' && (
           <div className="header-buttons">
-            <button 
+            <button
               className="file-history-btn"
               onClick={() => setShowFileHistory(true)}
               title="View Recent & Saved Files"
             >
               📁 Files
             </button>
-            <button 
+            <button
               className="sketch-gallery-btn"
               onClick={handleOpenSketchGallery}
               title="View Sketches"
@@ -504,27 +734,380 @@ function App() {
             </button>
           </div>
         )}
-        {(mode === 'pdf' || mode === 'sketch') && (
-          <button 
-            onClick={toggleHeader} 
-            className="toggle-header-btn"
-            title={isHeaderHidden ? "Show Header (Ctrl+H)" : "Hide Header (Ctrl+H)"}
-          >
-            {isHeaderHidden ? '▼' : '▲'}
-          </button>
+        {!isStandalone() && (
+          <div className="header-controls">
+            <button
+              onClick={handlePWAInstall}
+              className="pwa-install-btn"
+              title="Install App"
+            >
+              📱 Install
+            </button>
+          </div>
+        )}
+        {(mode === 'pdf' || mode === 'sketch' || mode === 'home') && (
+          <div className="header-controls">
+            <button
+              onClick={() => setIsHamburgerMenuOpen(!isHamburgerMenuOpen)}
+              className="hamburger-btn"
+              title={mode === 'home' ? "Settings & Help" : "Tools Menu"}
+            >
+              ☰
+            </button>
+          </div>
         )}
       </header>
 
-      {/* Floating toggle button when header is hidden */}
-      {isHeaderHidden && (mode === 'pdf' || mode === 'sketch') && (
-        <button 
-          onClick={toggleHeader} 
-          className="floating-header-toggle"
-          title="Show Header (Ctrl+H)"
-        >
-          ▼ Show Header
-        </button>
+
+      {/* Hamburger Menu Overlay */}
+      {isHamburgerMenuOpen && (
+        <div
+          className="hamburger-overlay active"
+          onClick={() => setIsHamburgerMenuOpen(false)}
+        />
       )}
+
+      {/* Hamburger Menu */}
+      <div className={`hamburger-menu ${isHamburgerMenuOpen ? 'open' : ''}`}>
+        <div className="hamburger-menu-content">
+          <div className="hamburger-menu-header">
+            <h3 className="hamburger-menu-title">{mode === 'home' ? 'Settings' : 'Tools'}</h3>
+            <button
+              className="hamburger-close-btn"
+              onClick={() => setIsHamburgerMenuOpen(false)}
+              title="Close Menu"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Drawing Tools - Only show in PDF/Sketch mode */}
+          {(mode === 'pdf' || mode === 'sketch') && (
+            <div className="hamburger-section">
+              <div className="hamburger-section-title">Drawing Tools</div>
+              <div className="drawing-controls" style={{ flexDirection: 'column', gap: '1rem' }}>
+                <div className="tool-selection" style={{ justifyContent: 'flex-start', gap: '0.5rem' }}>
+                  <button
+                    className={drawingTool === 'pen' ? 'active' : ''}
+                    onClick={() => setDrawingTool('pen')}
+                    title="Pen Tool"
+                  >
+                    ✏️
+                  </button>
+                  <button
+                    className={drawingTool === 'eraser' ? 'active' : ''}
+                    onClick={() => setDrawingTool('eraser')}
+                    title="Eraser Tool"
+                  >
+                    🧽
+                  </button>
+                  <button
+                    className={drawingTool === 'pan' ? 'active' : ''}
+                    onClick={() => setDrawingTool('pan')}
+                    title="Pan Tool (Ctrl+M) - Move around the page without drawing"
+                  >
+                    🖐️
+                  </button>
+                  <button
+                    className={drawingTool === 'text' ? 'active' : ''}
+                    onClick={() => setDrawingTool('text')}
+                    title="Text Tool (Ctrl+T)"
+                  >
+                    📝
+                  </button>
+                </div>
+
+                <div className="pen-settings" style={{ flexDirection: 'column', gap: '0.75rem' }}>
+                  <div className="pen-style-selector">
+                    <label htmlFor="pen-style-hamburger">Style:</label>
+                    <select
+                      id="pen-style-hamburger"
+                      value={penStyle}
+                      onChange={(e) => setPenStyle(e.target.value as PenStyle)}
+                      title="Pen Style"
+                      style={{ width: '100%', marginTop: '0.25rem' }}
+                    >
+                      <optgroup label="Classic">
+                        <option value="writing">✍️ Writing</option>
+                        <option value="drawing">🎨 Drawing</option>
+                        <option value="calligraphy">🖋️ Calligraphy</option>
+                      </optgroup>
+                      <optgroup label="Premium Pens">
+                        <option value="fountain">🖋️ Fountain Pen</option>
+                        <option value="ballpoint">🖊️ Ballpoint</option>
+                        <option value="brush">🖌️ Brush</option>
+                        <option value="pencil">✏️ Pencil</option>
+                        <option value="highlighter">💡 Highlighter</option>
+                      </optgroup>
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <input
+                      type="color"
+                      value={penColor}
+                      onChange={(e) => setPenColor(e.target.value)}
+                      title="Pen Color"
+                      style={{ width: '50px', height: '40px' }}
+                    />
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', marginBottom: '0.25rem' }}>Size:</label>
+                      <input
+                        type="range"
+                        min="1"
+                        max="20"
+                        value={penSize}
+                        onChange={(e) => setPenSize(Number(e.target.value))}
+                        title="Pen Size"
+                        style={{ width: '100%' }}
+                      />
+                      <span className="pen-size-display">{penSize}px</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <label>Opacity:</label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={penOpacity * 100}
+                      onChange={(e) => setPenOpacity(Number(e.target.value) / 100)}
+                      title="Pen Opacity"
+                      style={{ flex: 1 }}
+                    />
+                    <span className="pen-size-display">{Math.round(penOpacity * 100)}%</span>
+                  </div>
+
+                  <div className="pen-favorites-controls" style={{ justifyContent: 'flex-start' }}>
+                    <button
+                      onClick={() => setShowPenFavorites(!showPenFavorites)}
+                      title="Pen Presets"
+                      className="favorites-toggle-btn"
+                    >
+                      ⭐ {showPenFavorites ? 'Hide' : 'Presets'}
+                    </button>
+                    <button
+                      onClick={handleSavePenFavorite}
+                      title="Save Current Pen as Preset"
+                      className="save-favorite-btn"
+                    >
+                      💾
+                    </button>
+                  </div>
+
+                  {showPenFavorites && (
+                    <div className="pen-favorites-list" style={{ position: 'static', marginTop: '0.5rem' }}>
+                      {penFavorites.map((fav) => (
+                        <div key={fav.id} className="pen-favorite-item">
+                          <button
+                            onClick={() => applyPenFavorite(fav)}
+                            className="apply-favorite-btn"
+                            title={`${fav.name}\nStyle: ${fav.style}, Size: ${fav.size}px, Opacity: ${Math.round(fav.opacity * 100)}%`}
+                          >
+                            <span className="favorite-preview" style={{
+                              backgroundColor: fav.color,
+                              opacity: fav.opacity,
+                              width: `${fav.size * 2}px`,
+                              height: `${fav.size * 2}px`,
+                            }}></span>
+                            <span className="favorite-name">{fav.name}</span>
+                          </button>
+                          {!fav.id.startsWith('default_') && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeletePenFavorite(fav.id);
+                              }}
+                              className="delete-favorite-btn"
+                              title="Delete Preset"
+                            >
+                              ❌
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      {penFavorites.length === 0 && (
+                        <p className="no-favorites">No pen presets saved yet. Click 💾 to save current pen settings!</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Page Navigation - Only show in PDF mode */}
+          {mode === 'pdf' && (
+            <div className="hamburger-section">
+              <div className="hamburger-section-title">Navigation</div>
+              <div className="page-controls" style={{ flexDirection: 'column', gap: '0.5rem' }}>
+                <button onClick={goToPreviousPage} disabled={currentPage <= 1}>
+                  ← Previous Page
+                </button>
+                <div className="page-jump" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                  <span className="page-label">Page</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max={numPages || 1}
+                    value={pageInput}
+                    onChange={handlePageInputChange}
+                    onKeyDown={handlePageInputSubmit}
+                    onBlur={handlePageInputBlur}
+                    className="page-input"
+                    title="Jump to page (press Enter)"
+                    style={{ width: '100%', margin: '0.25rem 0' }}
+                  />
+                  <span className="page-total">of {numPages}</span>
+                </div>
+                <button onClick={goToNextPage} disabled={currentPage >= (numPages || 1)}>
+                  Next Page →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* History & Actions - Only show in PDF/Sketch mode */}
+          {(mode === 'pdf' || mode === 'sketch') && (
+            <div className="hamburger-section">
+              <div className="hamburger-section-title">History & Actions</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div className="history-controls" style={{ justifyContent: 'flex-start' }}>
+                  <button onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)">
+                    ↶ Undo
+                  </button>
+                  <button onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Y)">
+                    ↷ Redo
+                  </button>
+                </div>
+
+                <button onClick={() => {
+                  setDrawingPaths([]);
+                  saveToHistory([]);
+                }} className="clear-btn" style={{ width: 'fit-content' }}>
+                  🗑️ Clear All
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Zoom & View Controls - Only show in PDF mode */}
+          {mode === 'pdf' && (
+            <div className="hamburger-section">
+              <div className="hamburger-section-title">View Controls</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div className="zoom-controls" style={{ justifyContent: 'center' }}>
+                  <button onClick={zoomOut} disabled={scale <= 0.5}>-</button>
+                  <span>{Math.round(scale * 100)}%</span>
+                  <button onClick={zoomIn} disabled={scale >= 15.0}>+</button>
+                </div>
+
+                <div className="view-controls" style={{ justifyContent: 'center' }}>
+                  <button
+                    onClick={() => setIsExpandedView(!isExpandedView)}
+                    className={`view-toggle-btn ${isExpandedView ? 'expanded' : ''}`}
+                    title={isExpandedView ? "Normal View" : "Expanded View (Maximize PDF)"}
+                  >
+                    {isExpandedView ? '🪟' : '⛶'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Advanced Drawing Tools - Only show in PDF/Sketch mode */}
+          {(mode === 'pdf' || mode === 'sketch') && (
+            <div className="hamburger-section">
+              <div className="hamburger-section-title">Advanced Drawing</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <button
+                  onClick={() => setShapeRecognitionEnabled(!shapeRecognitionEnabled)}
+                  className={shapeRecognitionEnabled ? 'shape-recognition-btn active' : 'shape-recognition-btn'}
+                  title={`Shape Recognition: ${shapeRecognitionEnabled ? 'ON' : 'OFF'}\nAuto-correct lines, circles, rectangles & arrows`}
+                  style={{ width: 'fit-content' }}
+                >
+                  {shapeRecognitionEnabled ? '🔷 Shapes ON' : '⬜ Shapes OFF'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Text Tools - Only show in PDF/Sketch mode when text tool is active */}
+          {(mode === 'pdf' || mode === 'sketch') && drawingTool === 'text' && (
+            <div className="hamburger-section">
+              <div className="hamburger-section-title">Text Tools</div>
+              <div className="text-settings" style={{ flexDirection: 'column', gap: '0.75rem', padding: '1rem', backgroundColor: 'rgba(52, 152, 219, 0.2)', border: '1px solid rgba(52, 152, 219, 0.4)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <input
+                    type="color"
+                    value={textColor}
+                    onChange={(e) => setTextColor(e.target.value)}
+                    title="Text Color"
+                  />
+                  <label>Size:</label>
+                  <input
+                    type="range"
+                    min="8"
+                    max="48"
+                    value={textFontSize}
+                    onChange={(e) => setTextFontSize(Number(e.target.value))}
+                    title="Font Size"
+                    style={{ flex: 1 }}
+                  />
+                  <span className="pen-size-display">{textFontSize}px</span>
+                </div>
+                <select
+                  value={textFontFamily}
+                  onChange={(e) => setTextFontFamily(e.target.value)}
+                  title="Font Family"
+                  style={{ width: '100%' }}
+                >
+                  <option value="Arial">Arial</option>
+                  <option value="Times New Roman">Times New Roman</option>
+                  <option value="Courier New">Courier New</option>
+                  <option value="Georgia">Georgia</option>
+                  <option value="Verdana">Verdana</option>
+                </select>
+              </div>
+            </div>
+          )}
+
+          {/* Settings - Show in all modes */}
+          <div className="hamburger-section">
+            <div className="hamburger-section-title">Settings</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <button onClick={toggleLanguage} className="language-btn" title={isRTL ? 'Switch to LTR' : 'Switch to RTL (Arabic)'}>
+                {isRTL ? 'LTR' : 'عربي'}
+              </button>
+
+              <button onClick={() => setShowHelp(true)} className="help-btn" title="Keyboard Shortcuts">
+                ? Help
+              </button>
+
+              {/* Save PDF button - Only show in PDF mode */}
+              {mode === 'pdf' && (
+                <button
+                  onClick={handleSavePDF}
+                  className="save-btn"
+                  disabled={isSaving}
+                  title="Save PDF with Annotations"
+                  style={{ width: '100%', marginTop: '0.5rem' }}
+                >
+                  {isSaving ? '💾 Saving...' : '💾 Save PDF'}
+                </button>
+              )}
+
+              {/* Back to Home button - Only show when not on home */}
+              {mode !== 'home' && (
+                <button onClick={handleBackToHome} className="change-file-btn" style={{ width: '100%' }}>
+                  ← Back to Home
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div className="app-content">
         {mode === 'home' && !pdfFile && !showSketchGallery ? (
@@ -560,271 +1143,16 @@ function App() {
             onBack={handleBackFromGallery}
           />
         ) : mode === 'sketch' ? (
-          <SketchPad
-            sketchId={currentSketch?.id}
-            initialPaths={currentSketch?.paths || []}
-            onSave={handleSaveSketch}
-            onBack={handleBackFromSketch}
-          />
-        ) : mode === 'pdf' && pdfFile ? (
           <div className="pdf-container">
-            <div className={`pdf-toolbar ${isToolbarHidden ? 'toolbar-hidden' : ''}`}>
-              <div className="page-controls">
-                <button onClick={goToPreviousPage} disabled={currentPage <= 1}>
-                  ← Prev
-                </button>
-                <div className="page-jump">
-                  <span className="page-label">Page</span>
-                  <input
-                    type="number"
-                    min="1"
-                    max={numPages || 1}
-                    value={pageInput}
-                    onChange={handlePageInputChange}
-                    onKeyDown={handlePageInputSubmit}
-                    onBlur={handlePageInputBlur}
-                    className="page-input"
-                    title="Jump to page (press Enter)"
-                  />
-                  <span className="page-total">of {numPages}</span>
-                </div>
-                <button onClick={goToNextPage} disabled={currentPage >= (numPages || 1)}>
-                  Next →
-                </button>
-              </div>
-
-              <div className="drawing-controls">
-                <div className="tool-selection">
-                  <button
-                    className={drawingTool === 'pen' ? 'active' : ''}
-                    onClick={() => setDrawingTool('pen')}
-                    title="Pen Tool"
-                  >
-                    ✏️
-                  </button>
-                  <button
-                    className={drawingTool === 'eraser' ? 'active' : ''}
-                    onClick={() => setDrawingTool('eraser')}
-                    title="Eraser Tool"
-                  >
-                    🧽
-                  </button>
-                  <button
-                    className={drawingTool === 'text' ? 'active' : ''}
-                    onClick={() => setDrawingTool('text')}
-                    title="Text Tool (Ctrl+T)"
-                  >
-                    📝
-                  </button>
-                </div>
-
-                <div className="text-settings" style={{ display: drawingTool === 'text' ? 'flex' : 'none' }}>
-                  <input
-                    type="color"
-                    value={textColor}
-                    onChange={(e) => setTextColor(e.target.value)}
-                    title="Text Color"
-                  />
-                  <label>Size:</label>
-                  <input
-                    type="range"
-                    min="8"
-                    max="48"
-                    value={textFontSize}
-                    onChange={(e) => setTextFontSize(Number(e.target.value))}
-                    title="Font Size"
-                  />
-                  <span className="pen-size-display">{textFontSize}px</span>
-                  <select 
-                    value={textFontFamily}
-                    onChange={(e) => setTextFontFamily(e.target.value)}
-                    title="Font Family"
-                  >
-                    <option value="Arial">Arial</option>
-                    <option value="Times New Roman">Times New Roman</option>
-                    <option value="Courier New">Courier New</option>
-                    <option value="Georgia">Georgia</option>
-                    <option value="Verdana">Verdana</option>
-                  </select>
-                </div>
-
-                <div className="pen-settings">
-                  <div className="pen-style-selector">
-                    <label htmlFor="pen-style">Style:</label>
-                    <select 
-                      id="pen-style"
-                      value={penStyle} 
-                      onChange={(e) => setPenStyle(e.target.value as PenStyle)}
-                      title="Pen Style"
-                    >
-                      <optgroup label="Classic">
-                        <option value="writing">✍️ Writing</option>
-                        <option value="drawing">🎨 Drawing</option>
-                        <option value="calligraphy">🖋️ Calligraphy</option>
-                      </optgroup>
-                      <optgroup label="Premium Pens">
-                        <option value="fountain">🖋️ Fountain Pen</option>
-                        <option value="ballpoint">🖊️ Ballpoint</option>
-                        <option value="brush">🖌️ Brush</option>
-                        <option value="pencil">✏️ Pencil</option>
-                        <option value="highlighter">💡 Highlighter</option>
-                      </optgroup>
-                    </select>
-                  </div>
-                  <input
-                    type="color"
-                    value={penColor}
-                    onChange={(e) => setPenColor(e.target.value)}
-                    title="Pen Color"
-                  />
-                  <label>Size:</label>
-                  <input
-                    type="range"
-                    min="1"
-                    max="20"
-                    value={penSize}
-                    onChange={(e) => setPenSize(Number(e.target.value))}
-                    title="Pen Size"
-                  />
-                  <span className="pen-size-display">{penSize}px</span>
-                  
-                  <label>Opacity:</label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={penOpacity * 100}
-                    onChange={(e) => setPenOpacity(Number(e.target.value) / 100)}
-                    title="Pen Opacity"
-                  />
-                  <span className="pen-size-display">{Math.round(penOpacity * 100)}%</span>
-                  
-                  <div className="pen-favorites-controls">
-                    <button
-                      onClick={() => setShowPenFavorites(!showPenFavorites)}
-                      title="Pen Presets"
-                      className="favorites-toggle-btn"
-                    >
-                      ⭐ {showPenFavorites ? 'Hide' : 'Presets'}
-                    </button>
-                    <button
-                      onClick={handleSavePenFavorite}
-                      title="Save Current Pen as Preset"
-                      className="save-favorite-btn"
-                    >
-                      💾
-                    </button>
-                  </div>
-                </div>
-
-                {showPenFavorites && (
-                  <div className="pen-favorites-list">
-                    {penFavorites.map((fav) => (
-                      <div key={fav.id} className="pen-favorite-item">
-                        <button
-                          onClick={() => applyPenFavorite(fav)}
-                          className="apply-favorite-btn"
-                          title={`${fav.name}\nStyle: ${fav.style}, Size: ${fav.size}px, Opacity: ${Math.round(fav.opacity * 100)}%`}
-                        >
-                          <span className="favorite-preview" style={{
-                            backgroundColor: fav.color,
-                            opacity: fav.opacity,
-                            width: `${fav.size * 2}px`,
-                            height: `${fav.size * 2}px`,
-                          }}></span>
-                          <span className="favorite-name">{fav.name}</span>
-                        </button>
-                        {!fav.id.startsWith('default_') && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeletePenFavorite(fav.id);
-                            }}
-                            className="delete-favorite-btn"
-                            title="Delete Preset"
-                          >
-                            ❌
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                    {penFavorites.length === 0 && (
-                      <p className="no-favorites">No pen presets saved yet. Click 💾 to save current pen settings!</p>
-                    )}
-                  </div>
-                )}
-
-                <div className="history-controls">
-                  <button onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)">
-                    ↶ Undo
-                  </button>
-                  <button onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Y)">
-                    ↷ Redo
-                  </button>
-                  <button 
-                    onClick={() => setShapeRecognitionEnabled(!shapeRecognitionEnabled)}
-                    className={shapeRecognitionEnabled ? 'shape-recognition-btn active' : 'shape-recognition-btn'}
-                    title={`Shape Recognition: ${shapeRecognitionEnabled ? 'ON' : 'OFF'}\nAuto-correct lines, circles, rectangles & arrows`}
-                  >
-                    {shapeRecognitionEnabled ? '🔷 Shapes' : '⬜ Shapes'}
-                  </button>
-                </div>
-
-                <button onClick={() => {
-                  setDrawingPaths([]);
-                  saveToHistory([]);
-                }} className="clear-btn">
-                  Clear All
-                </button>
-              </div>
-
-              <div className="zoom-controls">
-                <button onClick={zoomOut} disabled={scale <= 0.5}>-</button>
-                <span>{Math.round(scale * 100)}%</span>
-                <button onClick={zoomIn} disabled={scale >= 3.0}>+</button>
-              </div>
-
-              <button onClick={toggleLanguage} className="language-btn" title={isRTL ? 'Switch to LTR' : 'Switch to RTL (Arabic)'}>
-                {isRTL ? 'LTR' : 'عربي'}
-              </button>
-
-              <button onClick={() => setShowHelp(true)} className="help-btn" title="Keyboard Shortcuts">
-                ?
-              </button>
-
-              <button 
-                onClick={handleSavePDF} 
-                className="save-btn" 
-                disabled={isSaving}
-                title="Save PDF with Annotations"
-              >
-                {isSaving ? '💾 Saving...' : '💾 Save PDF'}
-              </button>
-
-              <button onClick={handleBackToHome} className="change-file-btn">
-                ← Back to Home
-              </button>
-
-              <button 
-                onClick={toggleToolbar} 
-                className="toggle-toolbar-btn"
-                title={isToolbarHidden ? "Show Toolbar (Ctrl+B)" : "Hide Toolbar (Ctrl+B)"}
-              >
-                {isToolbarHidden ? '▼' : '▲'}
-              </button>
-            </div>
-
-            {/* Floating toolbar toggle button when toolbar is hidden */}
-            {isToolbarHidden && (
-              <button 
-                onClick={toggleToolbar} 
-                className="floating-toolbar-toggle"
-                title="Show Toolbar (Ctrl+B)"
-              >
-                ▼ Show Tools
-              </button>
-            )}
-
+            <SketchPad
+              sketchId={currentSketch?.id}
+              initialPaths={currentSketch?.paths || []}
+              onSave={handleSaveSketch}
+              onBack={handleBackFromSketch}
+            />
+          </div>
+        ) : mode === 'pdf' && pdfFile ? (
+          <div className={`pdf-container ${isExpandedView ? 'expanded-view' : ''}`}>
             <div className="pdf-viewer-wrapper">
               <PDFViewer
                 file={pdfFile}
@@ -843,10 +1171,16 @@ function App() {
                 onTextAdd={handleTextAdd}
                 onTextDelete={handleTextDelete}
                 onTextUpdate={handleTextUpdate}
+                onTextMove={handleTextMove}
                 textFontSize={textFontSize}
                 textColor={textColor}
                 textFontFamily={textFontFamily}
                 onPageDimensionsChange={setPdfDimensions}
+                isExpandedView={isExpandedView}
+                onPan={handlePan}
+                scrollPosition={scrollPosition}
+                onAutoScrollNext={handleAutoScrollNext}
+                totalPages={numPages ?? undefined}
               />
             </div>
           </div>
@@ -874,13 +1208,16 @@ function App() {
                   <kbd>Ctrl+T</kbd> <span>Switch to Text Tool</span>
                 </div>
                 <div className="shortcut-item">
+                  <kbd>Ctrl+M</kbd> <span>Switch to Pan Tool</span>
+                </div>
+                <div className="shortcut-item">
                   <kbd>1-9</kbd> <span>Set pen size (1-9px)</span>
                 </div>
                 <div className="shortcut-item">
-                  <kbd>Ctrl+H</kbd> <span>Toggle Header</span>
+                  <kbd>Ctrl+B</kbd> <span>Toggle Toolbar</span>
                 </div>
                 <div className="shortcut-item">
-                  <kbd>Ctrl+B</kbd> <span>Toggle Toolbar</span>
+                  <kbd>Ctrl+F</kbd> <span>Toggle Expanded View</span>
                 </div>
               </div>
               <button onClick={() => setShowHelp(false)} className="close-help-btn">

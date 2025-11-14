@@ -2,14 +2,18 @@
 
 let deferredPrompt: any = null;
 
+// Make deferredPrompt globally accessible
+(window as any).deferredPrompt = deferredPrompt;
+
 // Listen for the beforeinstallprompt event
 window.addEventListener('beforeinstallprompt', (e) => {
   // Prevent the mini-infobar from appearing on mobile
   e.preventDefault();
   // Stash the event so it can be triggered later
   deferredPrompt = e;
+  (window as any).deferredPrompt = e; // Update global reference
   console.log('PWA install prompt available');
-  
+
   // Show install button or banner
   showInstallBanner();
 });
@@ -95,17 +99,18 @@ async function installPWA() {
     console.log('Install prompt not available');
     return;
   }
-  
+
   // Show the install prompt
   deferredPrompt.prompt();
-  
+
   // Wait for the user to respond to the prompt
   const { outcome } = await deferredPrompt.userChoice;
   console.log(`User response to the install prompt: ${outcome}`);
-  
+
   // Clear the deferredPrompt
   deferredPrompt = null;
-  
+  (window as any).deferredPrompt = null; // Clear global reference
+
   // Remove the banner
   document.getElementById('pwa-install-banner')?.remove();
 }
@@ -114,6 +119,7 @@ async function installPWA() {
 window.addEventListener('appinstalled', () => {
   console.log('PWA was installed successfully');
   deferredPrompt = null;
+  (window as any).deferredPrompt = null; // Clear global reference
   document.getElementById('pwa-install-banner')?.remove();
 });
 
@@ -176,12 +182,32 @@ function isIOSDevice(): boolean {
 
 // Initialize PWA features
 export function initPWA() {
-  console.log('PWA features initialized');
-  console.log('Is standalone:', isStandalone());
-  
+  console.log('🚀 PWA features initializing...');
+  console.log('📱 Is standalone:', isStandalone());
+  console.log('⚙️ Service worker supported:', 'serviceWorker' in navigator);
+  console.log('📲 Before install prompt supported:', 'onbeforeinstallprompt' in window);
+  console.log('🌐 Protocol:', window.location.protocol);
+  console.log('🏠 Hostname:', window.location.hostname);
+
+  // Check if already installed
+  if (isStandalone()) {
+    console.log('✅ App is already installed (standalone mode)');
+    return;
+  }
+
+  // Force show install banner for testing in development
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    console.log('🧪 Development mode: forcing install banner in 3 seconds...');
+    setTimeout(() => {
+      showInstallBanner();
+    }, 3000);
+  } else {
+    console.log('📦 Production mode: waiting for beforeinstallprompt event');
+  }
+
   // Show iOS instructions after a delay
   setTimeout(() => {
     showIOSInstallInstructions();
-  }, 3000);
+  }, 4000);
 }
 

@@ -1,10 +1,13 @@
 .text-annotation {
   user-select: none;
-  white-space: pre-wrap;
+  white-space: nowrap; /* Prevent text wrapping that might cause vertical display */
   word-break: break-word;
   max-width: 300px;
+  display: inline-block; /* Ensure horizontal text flow */
   transition: all 0.2s;
   z-index: 10;
+  font-family: inherit; /* Ensure proper font inheritance */
+  line-height: 1.2; /* Better line height for readability */
 }
 
 .text-annotation:hover {

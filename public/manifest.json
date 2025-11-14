@@ -2,7 +2,7 @@
   "name": "PDF Note Taking & Sketch App",
   "short_name": "NoteTaker",
   "description": "Annotate PDFs and create sketches with unlimited storage",
-  "start_url": "/",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#667eea",
   "theme_color": "#667eea",

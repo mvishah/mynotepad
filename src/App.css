@@ -14,6 +14,9 @@ body {
   transition: direction 0.3s ease;
   overflow: hidden;
   width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
 }
 
 body.rtl {
@@ -48,11 +51,6 @@ body.rtl {
   z-index: 100;
 }
 
-.app-header.header-hidden {
-  transform: translateY(-100%);
-  opacity: 0;
-  pointer-events: none;
-}
 
 .app-header h1 {
   margin: 0;
@@ -72,66 +70,7 @@ body.rtl {
   gap: 0.5rem;
 }
 
-.toggle-header-btn {
-  background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
-  color: white;
-  border: none;
-  padding: 0.35rem 0.65rem;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.85rem;
-  font-weight: 600;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  position: absolute;
-  right: 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 32px;
-  min-height: 32px;
-}
 
-.toggle-header-btn:hover {
-  background: linear-gradient(135deg, #7f8c8d 0%, #6c7a7b 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-.toggle-header-btn:active {
-  transform: translateY(0);
-}
-
-.floating-header-toggle {
-  position: fixed;
-  top: 0.25rem;
-  right: 0.5rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  padding: 0.35rem 0.75rem;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.8rem;
-  font-weight: 600;
-  box-shadow: 0 3px 12px rgba(102, 126, 234, 0.4);
-  z-index: 1000;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  animation: slideDown 0.3s ease;
-}
-
-.floating-header-toggle:hover {
-  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
-  transform: translateY(2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
-}
-
-.floating-header-toggle:active {
-  transform: translateY(4px);
-}
 
 @keyframes slideDown {
   from {
@@ -174,38 +113,172 @@ body.rtl {
 
 .floating-toolbar-toggle {
   position: fixed;
-  top: 2.75rem;
+  top: 2.5rem;
   right: 0.5rem;
   background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
   color: white;
   border: none;
-  padding: 0.35rem 0.75rem;
-  border-radius: 6px;
+  padding: 0.3rem 0.6rem;
+  border-radius: 5px;
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  box-shadow: 0 3px 12px rgba(52, 152, 219, 0.4);
+  box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
   z-index: 999;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
   animation: slideDown 0.3s ease;
+  opacity: 0.9;
 }
 
-/* Adjust position when header is also hidden */
-.header-hidden ~ .pdf-container .floating-toolbar-toggle {
-  top: 0.25rem;
-}
 
 .floating-toolbar-toggle:hover {
   background: linear-gradient(135deg, #2980b9 0%, #3498db 100%);
   transform: translateY(2px);
-  box-shadow: 0 6px 20px rgba(52, 152, 219, 0.5);
+  box-shadow: 0 4px 15px rgba(52, 152, 219, 0.5);
+  opacity: 1;
 }
 
 .floating-toolbar-toggle:active {
-  transform: translateY(4px);
+  transform: translateY(3px);
+}
+
+/* Hamburger Menu Styles */
+.hamburger-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 0.45rem 0.9rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-weight: 600;
+  font-size: 1.2rem;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.25);
+  position: relative;
+  overflow: hidden;
+  white-space: nowrap;
+  margin-right: 0.5rem;
+}
+
+.hamburger-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.hamburger-btn:active {
+  transform: translateY(-1px);
+}
+
+.hamburger-menu {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 320px;
+  height: 100vh;
+  background: rgba(44, 62, 80, 0.98);
+  backdrop-filter: blur(10px);
+  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+  transform: translateX(-100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 1001;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.2) transparent;
+}
+
+.hamburger-menu.open {
+  transform: translateX(0);
+}
+
+.hamburger-menu::-webkit-scrollbar {
+  width: 6px;
+}
+
+.hamburger-menu::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.05);
+}
+
+.hamburger-menu::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.2);
+  border-radius: 3px;
+}
+
+.hamburger-menu-content {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.hamburger-menu-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.hamburger-menu-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #ecf0f1;
+}
+
+.hamburger-close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #bdc3c7;
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.hamburger-close-btn:hover {
+  background: rgba(255,255,255,0.1);
+  color: #ecf0f1;
+}
+
+.hamburger-section {
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  padding-bottom: 1rem;
+}
+
+.hamburger-section:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.hamburger-section-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #ecf0f1;
+  margin-bottom: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Hamburger Menu Overlay */
+.hamburger-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+}
+
+.hamburger-overlay.active {
+  opacity: 1;
+  visibility: visible;
 }
 
 .file-history-btn,
@@ -329,10 +402,12 @@ body.rtl {
 }
 
 .app-content {
-  flex: 1;
-  overflow: auto;
+  flex: 1 1 auto;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  height: 100%;
 }
 
 /* Home Screen Layout */
@@ -345,6 +420,18 @@ body.rtl {
   max-width: 1400px;
   margin: 0 auto;
   width: 100%;
+  overflow: auto;
+  flex: 1;
+}
+
+/* Hide scrollbar on home container */
+.home-container::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, and Opera */
+}
+
+.home-container {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
 }
 
 /* File Upload Styles */
@@ -448,9 +535,15 @@ body.rtl {
 
 /* PDF Container Styles */
 .pdf-container {
-  height: 100%;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+  height: 100%;
+  background-color: #ecf0f1;
+  margin-top: 0; /* Ensure PDF starts right after header */
+  padding-top: 0; /* Remove any top padding */
 }
 
 .pdf-toolbar {
@@ -801,19 +894,42 @@ body.rtl {
 }
 
 .clear-btn {
-  background-color: #e74c3c;
+  background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
   color: white;
   border: none;
   padding: 0.4rem 0.85rem;
   border-radius: 6px;
   cursor: pointer;
-  transition: background-color 0.3s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   font-size: 0.85rem;
   font-weight: 500;
+  box-shadow: 0 2px 8px rgba(231, 76, 60, 0.25);
+  position: relative;
+  overflow: hidden;
+}
+
+.clear-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transition: left 0.5s;
+}
+
+.clear-btn:hover::before {
+  left: 100%;
 }
 
 .clear-btn:hover {
-  background-color: #c0392b;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4);
+}
+
+.clear-btn:active {
+  transform: translateY(0);
 }
 
 .page-controls,
@@ -896,74 +1012,211 @@ body.rtl {
   cursor: not-allowed;
 }
 
-.save-btn {
-  background-color: #27ae60;
-  color: white;
-  border: none;
-  padding: 0.4rem 0.85rem;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background-color 0.3s;
-  font-weight: 600;
-  font-size: 0.85rem;
+.view-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.save-btn:hover:not(:disabled) {
-  background-color: #229954;
-}
-
-.save-btn:disabled {
-  background-color: #95a5a6;
-  cursor: not-allowed;
-}
-
-.change-file-btn {
-  background-color: #e74c3c;
-  color: white;
-  border: none;
-  padding: 0.4rem 0.85rem;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background-color 0.3s;
-  font-size: 0.85rem;
-  font-weight: 500;
-}
-
-.language-btn {
-  background-color: #9b59b6;
-  color: white;
-  border: none;
-  padding: 0.4rem 0.85rem;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background-color 0.3s;
-  font-weight: 600;
-  font-size: 0.85rem;
-}
-
-.language-btn:hover {
-  background-color: #8e44ad;
-}
-
-.help-btn {
+.view-toggle-btn {
   background-color: #3498db;
   color: white;
   border: none;
-  padding: 0.45rem 0.65rem;
-  border-radius: 50%;
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
   cursor: pointer;
-  transition: background-color 0.3s;
-  font-weight: bold;
+  transition: all 0.3s ease;
+  font-size: 1rem;
+  min-width: 40px;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(52, 152, 219, 0.3);
+}
+
+.view-toggle-btn:hover {
+  background-color: #2980b9;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(52, 152, 219, 0.4);
+}
+
+.view-toggle-btn.expanded {
+  background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
+  box-shadow: 0 2px 6px rgba(39, 174, 96, 0.3);
+}
+
+.view-toggle-btn.expanded:hover {
+  background: linear-gradient(135deg, #229954 0%, #1e8449 100%);
+  box-shadow: 0 4px 10px rgba(39, 174, 96, 0.4);
+}
+
+.save-btn {
+  background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
+  color: white;
+  border: none;
+  padding: 0.4rem 0.85rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-weight: 600;
+  font-size: 0.85rem;
+  box-shadow: 0 2px 8px rgba(39, 174, 96, 0.25);
+  position: relative;
+  overflow: hidden;
+}
+
+.save-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transition: left 0.5s;
+}
+
+.save-btn:hover:not(:disabled)::before {
+  left: 100%;
+}
+
+.save-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(39, 174, 96, 0.4);
+}
+
+.save-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.save-btn:disabled {
+  background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 0 1px 4px rgba(127, 140, 141, 0.25);
+}
+
+.change-file-btn {
+  background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+  color: white;
+  border: none;
+  padding: 0.4rem 0.85rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 0.85rem;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(231, 76, 60, 0.25);
+  position: relative;
+  overflow: hidden;
+}
+
+.change-file-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transition: left 0.5s;
+}
+
+.change-file-btn:hover::before {
+  left: 100%;
+}
+
+.change-file-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4);
+}
+
+.change-file-btn:active {
+  transform: translateY(0);
+}
+
+.language-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 0.4rem 0.85rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-weight: 600;
+  font-size: 0.85rem;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.25);
+  position: relative;
+  overflow: hidden;
+}
+
+.language-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transition: left 0.5s;
+}
+
+.language-btn:hover::before {
+  left: 100%;
+}
+
+.language-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.language-btn:active {
+  transform: translateY(0);
+}
+
+.help-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 0.45rem 0.65rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-weight: 600;
   font-size: 1rem;
   min-width: 36px;
   min-height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.25);
+  position: relative;
+  overflow: hidden;
+}
+
+.help-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transition: left 0.5s;
+}
+
+.help-btn:hover::before {
+  left: 100%;
 }
 
 .help-btn:hover {
-  background-color: #2980b9;
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.help-btn:active {
+  transform: translateY(-1px);
 }
 
 .change-file-btn:hover {
@@ -1035,42 +1288,121 @@ body.rtl {
 }
 
 .close-help-btn {
-  background-color: #3498db;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
   padding: 0.75rem 1.5rem;
-  border-radius: 4px;
+  border-radius: 8px;
   cursor: pointer;
-  transition: background-color 0.3s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   width: 100%;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.25);
+  position: relative;
+  overflow: hidden;
+}
+
+.close-help-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transition: left 0.5s;
+}
+
+.close-help-btn:hover::before {
+  left: 100%;
 }
 
 .close-help-btn:hover {
-  background-color: #2980b9;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.close-help-btn:active {
+  transform: translateY(0);
 }
 
 .pdf-viewer-wrapper {
-  flex: 1;
-  overflow: auto;
+  flex: 1 1 auto;
+  overflow: auto; /* Enable scrolling for large PDFs */
   background-color: #ecf0f1;
   display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding: 0.5rem;
-  transition: padding 0.3s ease;
+  justify-content: center; /* Center the PDF horizontally */
+  align-items: flex-start; /* Allow vertical scrolling from top */
+  padding: 0.25rem;
+  transition: all 0.3s ease;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  position: relative;
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: rgba(0,0,0,0.2) transparent; /* Firefox */
+}
+
+/* Custom scrollbar styling for webkit browsers */
+.pdf-viewer-wrapper::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.pdf-viewer-wrapper::-webkit-scrollbar-track {
+  background: rgba(0,0,0,0.05);
+  border-radius: 4px;
+}
+
+.pdf-viewer-wrapper::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.2);
+  border-radius: 4px;
+}
+
+.pdf-viewer-wrapper::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,0,0,0.3);
 }
 
 /* Maximize space when toolbar is hidden */
 .pdf-container:has(.toolbar-hidden) .pdf-viewer-wrapper {
-  padding: 0.25rem;
+  padding: 0.15rem;
+}
+
+
+/* Expanded view styles - minimize padding for maximum PDF space */
+.pdf-container.expanded-view .pdf-viewer-wrapper {
+  padding: 0.05rem;
+  background-color: #f8f9fa;
+  overflow: auto; /* Allow scrolling in expanded view */
+}
+
+
+/* Adjust zoom controls max when in expanded view */
+.pdf-container.expanded-view .zoom-controls button:last-child {
+  opacity: 0.8;
 }
 
 .pdf-viewer {
   box-shadow: 0 4px 8px rgba(0,0,0,0.1);
   background-color: white;
   border-radius: 4px;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid #e1e8ed;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: fit-content;
+  min-width: 100%;
+  height: fit-content;
+  min-height: 100%;
+}
+
+/* Expanded view - remove constraints for maximum space */
+.pdf-viewer.expanded-pdf-viewer {
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
+  background-color: transparent;
 }
 
 .pdf-viewer-placeholder {
@@ -1084,9 +1416,35 @@ body.rtl {
 
 /* Drawing Canvas Enhancements */
 .drawing-canvas {
-  image-rendering: auto;
+  image-rendering: -webkit-optimize-contrast; /* Crisp rendering on webkit */
+  image-rendering: crisp-edges; /* Crisp rendering on Firefox */
+  image-rendering: pixelated; /* Fallback for crisp edges */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* PWA Install Button */
+.pwa-install-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.pwa-install-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.pwa-install-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
 }
 
 /* Tablet Optimizations (768px - 1024px) */
@@ -1201,7 +1559,7 @@ body.rtl {
   }
 
   .pdf-viewer-wrapper {
-    padding: 0.5rem;
+    padding: 0.35rem;
   }
 
   .file-upload-dropzone {
@@ -1359,7 +1717,7 @@ body.rtl {
   }
 
   .pdf-viewer-wrapper {
-    padding: 0.5rem;
+    padding: 0.35rem;
   }
 }
 
@@ -1434,7 +1792,7 @@ body.rtl {
   }
 
   .pdf-viewer-wrapper {
-    padding: 0.35rem;
+    padding: 0.25rem;
   }
 
   .quick-access {
