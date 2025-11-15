@@ -462,39 +462,115 @@ function App() {
 
   const installAppDirectly = () => {
     const userAgent = navigator.userAgent;
-    const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(userAgent);
+    const isTablet = /iPad|Android/i.test(userAgent) && !/Mobile/i.test(userAgent);
+    const isPhone = /iPhone|iPod|Android.*Mobile/i.test(userAgent);
     const isIOS = /iPad|iPhone|iPod/.test(userAgent);
     const isAndroid = /Android/.test(userAgent);
     const isWindows = navigator.platform.toLowerCase().indexOf('win') > -1;
     const isMac = navigator.platform.toLowerCase().indexOf('mac') > -1;
+    const isWindowsTablet = /Windows/i.test(userAgent) && /Touch/i.test(userAgent);
+
+    // First, try to use native install prompt if available (works on some tablets)
+    const installEvent = (window as any).deferredPrompt;
+    if (installEvent) {
+      console.log('Native install prompt available, using it');
+      installEvent.prompt();
+      installEvent.userChoice.then((choice: any) => {
+        if (choice.outcome === 'accepted') {
+          showInstallModal('✅ Installation Started!', 
+            'The app is being installed. You can close this window.');
+        } else {
+          // User dismissed, fall through to other methods
+          continueInstallation(isTablet, isPhone, isIOS, isAndroid, isWindows, isMac, isWindowsTablet);
+        }
+      }).catch(() => {
+        continueInstallation(isTablet, isPhone, isIOS, isAndroid, isWindows, isMac, isWindowsTablet);
+      });
+      return;
+    }
+
+    // No native prompt, continue with other methods
+    continueInstallation(isTablet, isPhone, isIOS, isAndroid, isWindows, isMac, isWindowsTablet);
+  };
+
+  const continueInstallation = (
+    isTablet: boolean, 
+    isPhone: boolean, 
+    isIOS: boolean, 
+    isAndroid: boolean, 
+    isWindows: boolean, 
+    isMac: boolean,
+    isWindowsTablet: boolean
+  ) => {
+    // Tablets: Try to download shortcut file (tablets can handle downloads)
+    if (isTablet && !isIOS) {
+      // Android tablets and Windows tablets can download files
+      if (isWindowsTablet) {
+        downloadShortcutFile(true, false);
+      } else if (isAndroid) {
+        // Android tablets - try download + show instructions
+        downloadShortcutFile(false, false);
+        setTimeout(() => {
+          showInstallModal('Android Tablet Installation',
+            '✅ Shortcut file downloaded!\n\n' +
+            'Option 1: Use the downloaded file\n' +
+            '  • Find "PDF Note Taker.html" in Downloads\n' +
+            '  • Open it to launch the app\n\n' +
+            'Option 2: Add to Home Screen\n' +
+            '  1. Tap the menu (⋮) in your browser\n' +
+            '  2. Select "Add to Home screen" or "Install app"\n' +
+            '  3. Tap "Add" or "Install"');
+        }, 500);
+      }
+      return;
+    }
 
     // Desktop: Download shortcut file immediately
-    if (!isMobile) {
+    if (!isTablet && !isPhone) {
       downloadShortcutFile(isWindows, isMac);
       return;
     }
 
-    // Mobile: Open in app-like window + show instructions
-    if (isIOS) {
+    // iOS iPad: Show specific instructions
+    if (isIOS && isTablet) {
       openAppWindow();
-      showInstallModal('iOS Installation', 
-        '1. Tap the Share button (⬆️) at the bottom\n' +
+      showInstallModal('iPad Installation', 
+        '1. Tap the Share button (⬆️) at the top or bottom\n' +
         '2. Scroll down and tap "Add to Home Screen"\n' +
-        '3. Tap "Add" to install\n\n' +
+        '3. Tap "Add" in the top right\n\n' +
         'The app is now open in a new window - you can bookmark it!');
-    } else if (isAndroid) {
-      openAppWindow();
-      showInstallModal('Android Installation',
-        '1. Tap the menu (⋮) in your browser\n' +
-        '2. Select "Add to Home screen" or "Install app"\n' +
-        '3. Tap "Add" or "Install"\n\n' +
-        'The app is now open in a new window - you can bookmark it!');
-    } else {
-      openAppWindow();
-      showInstallModal('Mobile Installation',
-        'Press Ctrl+D (or Cmd+D on Mac) to bookmark this page for quick access.\n\n' +
-        'The app is now open in a new window!');
+      return;
     }
+
+    // Phones: Show phone-specific instructions
+    if (isPhone) {
+      if (isIOS) {
+        openAppWindow();
+        showInstallModal('iPhone Installation', 
+          '1. Tap the Share button (⬆️) at the bottom\n' +
+          '2. Scroll down and tap "Add to Home Screen"\n' +
+          '3. Tap "Add" to install\n\n' +
+          'The app is now open in a new window - you can bookmark it!');
+      } else if (isAndroid) {
+        openAppWindow();
+        showInstallModal('Android Phone Installation',
+          '1. Tap the menu (⋮) in your browser\n' +
+          '2. Select "Add to Home screen" or "Install app"\n' +
+          '3. Tap "Add" or "Install"\n\n' +
+          'The app is now open in a new window - you can bookmark it!');
+      } else {
+        openAppWindow();
+        showInstallModal('Mobile Installation',
+          'Press Ctrl+D (or Cmd+D on Mac) to bookmark this page for quick access.\n\n' +
+          'The app is now open in a new window!');
+      }
+      return;
+    }
+
+    // Fallback
+    openAppWindow();
+    showInstallModal('Installation',
+      'The app is now open in a new window. You can bookmark it for quick access!');
   };
 
   const downloadShortcutFile = (isWindows: boolean, isMac: boolean) => {
