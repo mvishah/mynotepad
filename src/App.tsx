@@ -8,7 +8,7 @@ import SketchGallery from './components/SketchGallery';
 import type { DrawingPath, PenStyle } from './components/DrawingCanvas';
 import type { TextAnnotation } from './components/TextAnnotation';
 import { addToRecentFiles, saveAnnotatedFile } from './utils/fileStorage';
-import { isStandalone } from './pwaInstall';
+import { isStandalone, showInstallBanner } from './pwaInstall';
 import type { Sketch } from './utils/sketchStorage';
 import { saveSketch } from './utils/sketchStorage';
 import { getPenFavorites, savePenFavorite, deletePenFavorite, type PenFavorite } from './utils/penFavorites';
@@ -454,100 +454,42 @@ function App() {
   };
 
   const handlePWAInstall = () => {
+    console.log('Install button clicked');
+
+    // Check if app is already installed
+    if (isStandalone()) {
+      alert('App is already installed!');
+      return;
+    }
+
     // Try to trigger the install prompt directly from the PWA system
     const installEvent = (window as any).deferredPrompt;
+    console.log('Deferred prompt available:', !!installEvent);
+
     if (installEvent) {
+      console.log('Triggering install prompt...');
       installEvent.prompt();
       installEvent.userChoice.then((choice: any) => {
         console.log('User choice:', choice.outcome);
         (window as any).deferredPrompt = null;
         // Remove any existing banners
         document.getElementById('pwa-install-banner')?.remove();
+
+        if (choice.outcome === 'accepted') {
+          console.log('User accepted the install');
+        } else {
+          console.log('User dismissed the install');
+        }
+      }).catch((error: any) => {
+        console.error('Install prompt error:', error);
       });
     } else {
-      // If no deferred prompt available, show browser-specific instructions
-      showInstallInstructions();
+      console.log('No deferred prompt available, showing install banner');
+      // If no deferred prompt available, show the PWA install banner with instructions
+      showInstallBanner();
     }
   };
 
-  const showInstallInstructions = () => {
-    const instructions = document.createElement('div');
-    instructions.style.cssText = `
-      position: fixed;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: white;
-      color: #2c3e50;
-      padding: 1.5rem;
-      border-radius: 12px;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-      z-index: 10001;
-      max-width: 90%;
-      text-align: center;
-    `;
-
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    const isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
-
-    if (isIOS) {
-      instructions.innerHTML = `
-        <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 0.5rem;">Install on iOS</div>
-        <div style="font-size: 0.9rem; margin-bottom: 1rem;">
-          Tap <strong>Share</strong> <span style="font-size: 1.2rem;">⬆️</span> then <strong>Add to Home Screen</strong>
-          <span style="font-size: 1.2rem;">➕</span>
-        </div>
-        <button onclick="this.parentElement.remove()" style="
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          color: white;
-          border: none;
-          padding: 0.6rem 1.5rem;
-          border-radius: 8px;
-          font-weight: 600;
-          cursor: pointer;
-        ">Got it!</button>
-      `;
-    } else if (isChrome) {
-      instructions.innerHTML = `
-        <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 0.5rem;">Install on Chrome</div>
-        <div style="font-size: 0.9rem; margin-bottom: 1rem;">
-          Look for the install icon <span style="font-size: 1.2rem;">📱</span> in the address bar, or click the menu (⋮) and select "Install"
-        </div>
-        <button onclick="this.parentElement.remove()" style="
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          color: white;
-          border: none;
-          padding: 0.6rem 1.5rem;
-          border-radius: 8px;
-          font-weight: 600;
-          cursor: pointer;
-        ">Got it!</button>
-      `;
-    } else {
-      instructions.innerHTML = `
-        <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 0.5rem;">Browser Installation</div>
-        <div style="font-size: 0.9rem; margin-bottom: 1rem;">
-          Look for an install prompt from your browser, or check the menu for installation options.
-        </div>
-        <button onclick="this.parentElement.remove()" style="
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          color: white;
-          border: none;
-          padding: 0.6rem 1.5rem;
-          border-radius: 8px;
-          font-weight: 600;
-          cursor: pointer;
-        ">Got it!</button>
-      `;
-    }
-
-    document.body.appendChild(instructions);
-
-    // Auto-dismiss after 10 seconds
-    setTimeout(() => {
-      instructions.remove();
-    }, 10000);
-  };
 
   const zoomIn = () => {
     setHasManualZoom(true);
