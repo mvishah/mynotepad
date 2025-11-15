@@ -202,7 +202,14 @@ export function initPWA() {
       showInstallBanner();
     }, 3000);
   } else {
-    console.log('📦 Production mode: waiting for beforeinstallprompt event');
+    // In production, show install banner after a short delay if no beforeinstallprompt event
+    console.log('📦 Production mode: waiting for beforeinstallprompt event or showing fallback...');
+    setTimeout(() => {
+      // Only show if no banner exists and no deferred prompt was captured
+      if (!document.getElementById('pwa-install-banner') && !deferredPrompt) {
+        showInstallBanner();
+      }
+    }, 5000);
   }
 
   // Show iOS instructions after a delay

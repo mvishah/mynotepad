@@ -35,6 +35,7 @@ interface PDFViewerProps {
   onPan?: (deltaX: number, deltaY: number) => void;
   scrollPosition?: { x: number; y: number };
   onAutoScrollNext?: () => void;
+  onAutoScrollPrevious?: () => void;
   totalPages?: number;
 }
 
@@ -64,6 +65,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
   onPan,
   scrollPosition = { x: 0, y: 0 },
   onAutoScrollNext,
+  onAutoScrollPrevious,
   totalPages,
 }) => {
   const [pageDimensions, setPageDimensions] = useState<{ width: number; height: number } | null>(null);
@@ -77,28 +79,37 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
     }
   }, [scrollPosition, tool]);
 
-  // Auto-scroll to next page when reaching bottom (Adobe-style continuous scrolling)
+  // Auto-scroll between pages when reaching top/bottom (Adobe-style continuous scrolling)
   React.useEffect(() => {
     const container = pageRef.current;
-    if (!container || !onAutoScrollNext || !totalPages || currentPage >= totalPages) return;
+    if (!container || (!onAutoScrollNext && !onAutoScrollPrevious) || !totalPages) return;
 
     let scrollTimeout: number;
 
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = container;
       const isAtBottom = scrollTop + clientHeight >= scrollHeight - 20; // Reduced threshold for more responsive scrolling
-      const isOverscroll = scrollTop + clientHeight > scrollHeight; // User has scrolled past content
+      const isOverscrollBottom = scrollTop + clientHeight > scrollHeight; // User has scrolled past content
+      const isAtTop = scrollTop <= 20; // Near top of page
+      const isOverscrollTop = scrollTop < 0; // User has scrolled past top content
 
       // Clear previous timeout
       clearTimeout(scrollTimeout);
 
-      if (isAtBottom || isOverscroll) {
+      // Handle scrolling to next page when reaching bottom
+      if ((isAtBottom || isOverscrollBottom) && onAutoScrollNext && currentPage < totalPages) {
         // Debounce the auto-scroll to prevent multiple calls
         scrollTimeout = setTimeout(() => {
-          if (onAutoScrollNext) {
-            console.log('Auto-advancing to next page (Adobe-style scrolling)');
-            onAutoScrollNext();
-          }
+          console.log('Auto-advancing to next page (Adobe-style scrolling)');
+          onAutoScrollNext();
+        }, 300); // 300ms delay to allow user to stop scrolling
+      }
+      // Handle scrolling to previous page when reaching top
+      else if ((isAtTop || isOverscrollTop) && onAutoScrollPrevious && currentPage > 1) {
+        // Debounce the auto-scroll to prevent multiple calls
+        scrollTimeout = setTimeout(() => {
+          console.log('Auto-scrolling to previous page (Adobe-style scrolling)');
+          onAutoScrollPrevious();
         }, 300); // 300ms delay to allow user to stop scrolling
       }
     };
@@ -109,12 +120,21 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
 
       const { scrollTop, scrollHeight, clientHeight } = container;
       const isAtBottom = scrollTop + clientHeight >= scrollHeight - 10;
+      const isAtTop = scrollTop <= 10;
 
-      // If at bottom and scrolling down, allow overscroll and auto-advance
-      if (isAtBottom && e.deltaY > 0 && onAutoScrollNext) {
+      // If at bottom and scrolling down, allow overscroll and auto-advance to next page
+      if (isAtBottom && e.deltaY > 0 && onAutoScrollNext && currentPage < totalPages) {
         e.preventDefault();
         console.log('Overscroll detected, auto-advancing to next page');
         onAutoScrollNext();
+        return;
+      }
+
+      // If at top and scrolling up, allow overscroll and auto-scroll to previous page
+      if (isAtTop && e.deltaY < 0 && onAutoScrollPrevious && currentPage > 1) {
+        e.preventDefault();
+        console.log('Overscroll detected, auto-scrolling to previous page');
+        onAutoScrollPrevious();
         return;
       }
     };
@@ -127,7 +147,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
       container.removeEventListener('wheel', handleWheel);
       clearTimeout(scrollTimeout);
     };
-  }, [onAutoScrollNext, totalPages, currentPage]);
+  }, [onAutoScrollNext, onAutoScrollPrevious, totalPages, currentPage]);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (tool !== 'text' || !pageDimensions) return;
@@ -305,7 +325,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
           </div>
         </Document>
 
-        {/* Scroll continuation indicator (Adobe-style) */}
+        {/* Scroll continuation indicators (Adobe-style) */}
         {totalPages && currentPage < totalPages && (
           <div
             style={{
@@ -327,6 +347,29 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
             }}
           >
             Continue scrolling ↓
+          </div>
+        )}
+        {totalPages && currentPage > 1 && (
+          <div
+            style={{
+              position: 'absolute',
+              top: isExpandedView ? '20px' : '30px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: 'rgba(102, 126, 234, 0.1)',
+              color: '#667eea',
+              padding: '6px 16px',
+              borderRadius: '16px',
+              fontSize: '0.8rem',
+              fontWeight: '500',
+              pointerEvents: 'none',
+              opacity: 0.8,
+              zIndex: 10,
+              border: '1px solid rgba(102, 126, 234, 0.2)',
+              backdropFilter: 'blur(4px)',
+            }}
+          >
+            ↑ Continue scrolling
           </div>
         )}
       </div>

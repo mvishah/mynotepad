@@ -454,90 +454,20 @@ function App() {
   };
 
   const handlePWAInstall = () => {
-    // Create a manual install prompt
-    const banner = document.createElement('div');
-    banner.id = 'manual-pwa-install-banner';
-    banner.style.cssText = `
-      position: fixed;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      padding: 1rem 2rem;
-      border-radius: 12px;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-      z-index: 10001;
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      animation: slideUp 0.3s ease;
-      max-width: 90%;
-    `;
-
-    banner.innerHTML = `
-      <style>
-        @keyframes slideUp {
-          from {
-            transform: translateX(-50%) translateY(100px);
-            opacity: 0;
-          }
-          to {
-            transform: translateX(-50%) translateY(0);
-            opacity: 1;
-          }
-        }
-      </style>
-      <span style="font-size: 1.5rem;">📱</span>
-      <div style="flex: 1;">
-        <div style="font-weight: 600; font-size: 1rem;">Install App</div>
-        <div style="font-size: 0.85rem; opacity: 0.9;">Get the full app experience</div>
-      </div>
-      <button id="manual-pwa-install-btn" style="
-        background: white;
-        color: #667eea;
-        border: none;
-        padding: 0.6rem 1.5rem;
-        border-radius: 8px;
-        font-weight: 600;
-        cursor: pointer;
-        font-size: 0.95rem;
-      ">Install</button>
-      <button id="manual-pwa-dismiss-btn" style="
-        background: transparent;
-        color: white;
-        border: 1px solid rgba(255,255,255,0.5);
-        padding: 0.6rem 1rem;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 0.95rem;
-      ">Later</button>
-    `;
-
-    document.body.appendChild(banner);
-
-    // Handle install button click
-    document.getElementById('manual-pwa-install-btn')?.addEventListener('click', () => {
-      // Try to trigger the install prompt
-      const installEvent = (window as any).deferredPrompt;
-      if (installEvent) {
-        installEvent.prompt();
-        installEvent.userChoice.then((choice: any) => {
-          console.log('User choice:', choice.outcome);
-          (window as any).deferredPrompt = null;
-          banner.remove();
-        });
-      } else {
-        // Fallback: show browser-specific instructions
-        showInstallInstructions();
-        banner.remove();
-      }
-    });
-
-    // Handle dismiss button click
-    document.getElementById('manual-pwa-dismiss-btn')?.addEventListener('click', () => {
-      banner.remove();
-    });
+    // Try to trigger the install prompt directly from the PWA system
+    const installEvent = (window as any).deferredPrompt;
+    if (installEvent) {
+      installEvent.prompt();
+      installEvent.userChoice.then((choice: any) => {
+        console.log('User choice:', choice.outcome);
+        (window as any).deferredPrompt = null;
+        // Remove any existing banners
+        document.getElementById('pwa-install-banner')?.remove();
+      });
+    } else {
+      // If no deferred prompt available, show browser-specific instructions
+      showInstallInstructions();
+    }
   };
 
   const showInstallInstructions = () => {
@@ -642,6 +572,12 @@ function App() {
     }
   };
 
+  const handleAutoScrollPrevious = () => {
+    if (currentPage > 1) {
+      goToPreviousPage();
+    }
+  };
+
   const handleSavePDF = async () => {
     if (!pdfFile || !pdfDimensions) {
       alert('Please load a PDF file first');
@@ -734,8 +670,8 @@ function App() {
             </button>
           </div>
         )}
-        {!isStandalone() && (
-          <div className="header-controls">
+        <div className="header-controls">
+          {!isStandalone() && (
             <button
               onClick={handlePWAInstall}
               className="pwa-install-btn"
@@ -743,10 +679,8 @@ function App() {
             >
               📱 Install
             </button>
-          </div>
-        )}
-        {(mode === 'pdf' || mode === 'sketch' || mode === 'home') && (
-          <div className="header-controls">
+          )}
+          {(mode === 'pdf' || mode === 'sketch' || mode === 'home') && (
             <button
               onClick={() => setIsHamburgerMenuOpen(!isHamburgerMenuOpen)}
               className="hamburger-btn"
@@ -754,8 +688,8 @@ function App() {
             >
               ☰
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </header>
 
 
@@ -1180,6 +1114,7 @@ function App() {
                 onPan={handlePan}
                 scrollPosition={scrollPosition}
                 onAutoScrollNext={handleAutoScrollNext}
+                onAutoScrollPrevious={handleAutoScrollPrevious}
                 totalPages={numPages ?? undefined}
               />
             </div>

@@ -38,7 +38,7 @@ vercel
 
 - Login when prompted (use GitHub - easiest)
 - Press Enter to accept defaults
-- **Copy the URL** you get (e.g., `https://your-app.vercel.app`)  https://mynotepad-c3jj9bwpb-mvishahs-projects.vercel.app
+- **Copy the URL** you get (e.g., `https://your-app.vercel.app`)  https://mynotepad-lac.vercel.app/
 
 #### 3. Install on Tablet & Use Offline
 
