@@ -502,27 +502,54 @@ function App() {
     isMac: boolean,
     isWindowsTablet: boolean
   ) => {
-    // Tablets: Try to download shortcut file (tablets can handle downloads)
-    if (isTablet && !isIOS) {
-      // Android tablets and Windows tablets can download files
-      if (isWindowsTablet) {
-        downloadShortcutFile(true, false);
+    // Tablets: Focus on "Add to Home Screen" installation (not file downloads)
+    if (isTablet) {
+      if (isIOS) {
+        // iPad: Show Share button instructions
+        openAppWindow();
+        showInstallModal('📱 Install on iPad', 
+          'To install this app on your iPad:\n\n' +
+          '1. Look for the Share button (⬆️) at the top or bottom of your screen\n' +
+          '2. Tap it to open the Share menu\n' +
+          '3. Scroll down and find "Add to Home Screen"\n' +
+          '4. Tap "Add to Home Screen"\n' +
+          '5. Tap "Add" in the top right corner\n\n' +
+          'The app will appear on your home screen like a native app!\n\n' +
+          '💡 Tip: The app is now open in a new window - you can bookmark it too.');
+        return;
       } else if (isAndroid) {
-        // Android tablets - try download + show instructions
-        downloadShortcutFile(false, false);
+        // Android tablets: Show menu instructions prominently
+        openAppWindow();
+        
+        // Try to scroll to top to help user see the menu button
         setTimeout(() => {
-          showInstallModal('Android Tablet Installation',
-            '✅ Shortcut file downloaded!\n\n' +
-            'Option 1: Use the downloaded file\n' +
-            '  • Find "PDF Note Taker.html" in Downloads\n' +
-            '  • Open it to launch the app\n\n' +
-            'Option 2: Add to Home Screen\n' +
-            '  1. Tap the menu (⋮) in your browser\n' +
-            '  2. Select "Add to Home screen" or "Install app"\n' +
-            '  3. Tap "Add" or "Install"');
-        }, 500);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }, 100);
+        
+        showInstallModal('📱 Install on Android Tablet',
+          'To install this app on your Android tablet:\n\n' +
+          '📍 WHERE TO LOOK:\n' +
+          'Look at the TOP RIGHT corner of your browser screen\n\n' +
+          'Method 1: Browser Menu (⋮) - MOST COMMON\n' +
+          '  1. Find the three dots (⋮) in the top right corner\n' +
+          '  2. Tap the three dots to open the menu\n' +
+          '  3. Scroll down in the menu\n' +
+          '  4. Look for "Add to Home screen" or "Install app"\n' +
+          '  5. Tap it, then tap "Add" or "Install"\n\n' +
+          'Method 2: Address Bar Icon (+)\n' +
+          '  • Look in the address bar (where the URL is)\n' +
+          '  • Look for a small "+" or install icon\n' +
+          '  • Tap it to install\n\n' +
+          '✅ After installation:\n' +
+          'The app will appear on your home screen like a native app!\n' +
+          'It will work offline and feel like a real app.\n\n' +
+          '💡 The app is now open in a new window - you can bookmark it too!');
+        return;
+      } else if (isWindowsTablet) {
+        // Windows tablets: Download shortcut file
+        downloadShortcutFile(true, false);
+        return;
       }
-      return;
     }
 
     // Desktop: Download shortcut file immediately
@@ -666,15 +693,19 @@ function App() {
       padding: 20px;
     `;
 
+    const isTablet = /iPad|Android/i.test(navigator.userAgent) && !/Mobile/i.test(navigator.userAgent);
+    
     const content = document.createElement('div');
     content.style.cssText = `
-        background: white;
+      background: white;
       border-radius: 16px;
-      padding: 2rem;
-      max-width: 500px;
+      padding: ${isTablet ? '2.5rem' : '2rem'};
+      max-width: ${isTablet ? '600px' : '500px'};
       width: 100%;
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
       text-align: center;
+      max-height: 90vh;
+      overflow-y: auto;
     `;
 
     content.innerHTML = `
@@ -703,10 +734,11 @@ function App() {
       if (e.target === modal) modal.remove();
     });
 
-    // Auto-close after 15 seconds
+    // Auto-close after longer time for tablets (they need more time to follow instructions)
+    const autoCloseTime = isTablet ? 30000 : 15000; // 30 seconds for tablets, 15 for others
     setTimeout(() => {
       if (modal.parentElement) modal.remove();
-    }, 15000);
+    }, autoCloseTime);
   };
 
 
