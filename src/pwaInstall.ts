@@ -45,22 +45,33 @@ export function showInstallBanner() {
 
   // Check if we have a deferred prompt available
   const hasDeferredPrompt = !!deferredPrompt;
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  const isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
+  const userAgent = navigator.userAgent;
+  const isIOS = /iPad|iPhone|iPod/.test(userAgent);
+  const isAndroid = /Android/.test(userAgent);
+  const isChrome = /Chrome/.test(userAgent) && /Google Inc/.test(navigator.vendor);
+  const isFirefox = /Firefox/.test(userAgent);
+  const isSafari = /Safari/.test(userAgent) && !/Chrome/.test(userAgent);
+  const isEdge = /Edg/.test(userAgent);
 
   let buttonText = 'Install';
   let instructions = 'Add to your home screen for better experience';
 
   if (!hasDeferredPrompt) {
-    if (isIOS) {
-      buttonText = 'Instructions';
+    if (isIOS && isSafari) {
+      buttonText = 'iOS Instructions';
       instructions = 'Tap Share → Add to Home Screen';
-    } else if (isChrome) {
-      buttonText = 'Instructions';
+    } else if (isAndroid && isChrome) {
+      buttonText = 'Android Instructions';
+      instructions = 'Look for install icon or use menu';
+    } else if ((isChrome || isEdge) && !isAndroid) {
+      buttonText = 'Desktop Instructions';
       instructions = 'Look for install icon in address bar';
+    } else if (isFirefox) {
+      buttonText = 'Firefox Options';
+      instructions = 'Firefox has limited PWA support';
     } else {
-      buttonText = 'Instructions';
-      instructions = 'Check browser menu for install option';
+      buttonText = 'Installation Help';
+      instructions = 'See installation options for your browser';
     }
   }
 
@@ -220,68 +231,172 @@ export function showInstallInstructions() {
     z-index: 10001;
     max-width: 90%;
     text-align: center;
+    max-height: 80vh;
+    overflow-y: auto;
   `;
 
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  const isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
+  const userAgent = navigator.userAgent;
+  const isIOS = /iPad|iPhone|iPod/.test(userAgent);
+  const isAndroid = /Android/.test(userAgent);
+  const isChrome = /Chrome/.test(userAgent) && /Google Inc/.test(navigator.vendor);
+  const isFirefox = /Firefox/.test(userAgent);
+  const isSafari = /Safari/.test(userAgent) && !/Chrome/.test(userAgent);
+  const isEdge = /Edg/.test(userAgent);
+  const isSamsung = /SamsungBrowser/.test(userAgent);
 
-  if (isIOS) {
-    instructions.innerHTML = `
-      <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 0.5rem;">Install on iOS</div>
-      <div style="font-size: 0.9rem; margin-bottom: 1rem;">
-        Tap <strong>Share</strong> <span style="font-size: 1.2rem;">⬆️</span> then <strong>Add to Home Screen</strong>
-        <span style="font-size: 1.2rem;">➕</span>
+  let title = "Installation Instructions";
+  let content = "";
+  let showManualBookmark = false;
+
+  // iOS Safari
+  if (isIOS && isSafari) {
+    title = "Install on iOS Safari";
+    content = `
+      <div style="margin-bottom: 1rem;">
+        <strong>Method 1: Add to Home Screen</strong><br>
+        1. Tap the <strong>Share</strong> button <span style="font-size: 1.2rem;">⬆️</span><br>
+        2. Scroll down and tap <strong>"Add to Home Screen"</strong> <span style="font-size: 1.2rem;">➕</span><br>
+        3. Tap <strong>"Add"</strong> in the top right
       </div>
-      <button onclick="this.parentElement.remove()" style="
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        padding: 0.6rem 1.5rem;
-        border-radius: 8px;
-        font-weight: 600;
-        cursor: pointer;
-      ">Got it!</button>
-    `;
-  } else if (isChrome) {
-    instructions.innerHTML = `
-      <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 0.5rem;">Install on Chrome</div>
-      <div style="font-size: 0.9rem; margin-bottom: 1rem;">
-        Look for the install icon <span style="font-size: 1.2rem;">📱</span> in the address bar, or click the menu (⋮) and select "Install"
+      <div style="margin-bottom: 1rem;">
+        <strong>Method 2: Use Bookmark</strong><br>
+        1. Tap the Share button <span style="font-size: 1.2rem;">⬆️</span><br>
+        2. Tap <strong>"Add to Favorites"</strong><br>
+        3. Open from Favorites for full-screen experience
       </div>
-      <button onclick="this.parentElement.remove()" style="
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        padding: 0.6rem 1.5rem;
-        border-radius: 8px;
-        font-weight: 600;
-        cursor: pointer;
-      ">Got it!</button>
-    `;
-  } else {
-    instructions.innerHTML = `
-      <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 0.5rem;">Browser Installation</div>
-      <div style="font-size: 0.9rem; margin-bottom: 1rem;">
-        Look for an install prompt from your browser, or check the menu for installation options.
-      </div>
-      <button onclick="this.parentElement.remove()" style="
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        padding: 0.6rem 1.5rem;
-        border-radius: 8px;
-        font-weight: 600;
-        cursor: pointer;
-      ">Got it!</button>
     `;
   }
+  // Android Chrome
+  else if (isAndroid && isChrome) {
+    title = "Install on Android Chrome";
+    content = `
+      <div style="margin-bottom: 1rem;">
+        <strong>Method 1: Install Button</strong><br>
+        Look for the install icon <span style="font-size: 1.2rem;">📱</span> in the address bar<br>
+        <em>(May appear after visiting the site multiple times)</em>
+      </div>
+      <div style="margin-bottom: 1rem;">
+        <strong>Method 2: Menu Option</strong><br>
+        1. Tap the menu (⋮) in top right<br>
+        2. Select <strong>"Install app"</strong> or <strong>"Add to Home screen"</strong>
+      </div>
+    `;
+  }
+  // Desktop Chrome/Edge
+  else if ((isChrome || isEdge) && !isAndroid) {
+    title = "Install on Desktop Chrome/Edge";
+    content = `
+      <div style="margin-bottom: 1rem;">
+        Look for the install icon <span style="font-size: 1.2rem;">📱</span> in the address bar<br>
+        <em>(Click it to install as desktop app)</em>
+      </div>
+      <div style="margin-bottom: 1rem;">
+        <strong>Alternative:</strong><br>
+        1. Click the menu (⋮) in top right<br>
+        2. Select <strong>"Install [App Name]"</strong>
+      </div>
+    `;
+  }
+  // Firefox
+  else if (isFirefox) {
+    title = "Firefox Installation";
+    content = `
+      <div style="margin-bottom: 1rem;">
+        Firefox has limited PWA support. Try these alternatives:
+      </div>
+      <div style="margin-bottom: 1rem;">
+        <strong>Option 1: Desktop Shortcut</strong><br>
+        1. Click the URL bar to highlight it<br>
+        2. Drag the URL to your desktop<br>
+        3. Double-click the shortcut to open in Firefox
+      </div>
+      <div style="margin-bottom: 1rem;">
+        <strong>Option 2: Bookmark</strong><br>
+        1. Press Ctrl+D (Cmd+D on Mac)<br>
+        2. Save as bookmark in toolbar<br>
+        3. Click bookmark for quick access
+      </div>
+    `;
+    showManualBookmark = true;
+  }
+  // Samsung Internet
+  else if (isSamsung) {
+    title = "Install on Samsung Internet";
+    content = `
+      <div style="margin-bottom: 1rem;">
+        <strong>Method 1:</strong><br>
+        Look for <strong>"Install app"</strong> in the menu (⋮)
+      </div>
+      <div style="margin-bottom: 1rem;">
+        <strong>Method 2:</strong><br>
+        1. Tap menu (⋮) → <strong>"Add to Home screen"</strong><br>
+        2. Tap <strong>"Install"</strong>
+      </div>
+    `;
+  }
+  // Other browsers
+  else {
+    title = "Installation Options";
+    content = `
+      <div style="margin-bottom: 1rem;">
+        <strong>Your browser may not support PWA installation.</strong><br>
+        Try these alternatives:
+      </div>
+      <div style="margin-bottom: 1rem;">
+        <strong>Option 1: Bookmark</strong><br>
+        Save this page as a bookmark for quick access
+      </div>
+      <div style="margin-bottom: 1rem;">
+        <strong>Option 2: Desktop Shortcut</strong><br>
+        Drag the URL from address bar to desktop
+      </div>
+      <div style="margin-bottom: 1rem;">
+        <strong>Recommended: Try Chrome or Edge</strong><br>
+        For full PWA features, use Chrome, Edge, or Safari
+      </div>
+    `;
+    showManualBookmark = true;
+  }
+
+  instructions.innerHTML = `
+    <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 1rem; color: #667eea;">${title}</div>
+    <div style="font-size: 0.9rem; line-height: 1.5; margin-bottom: 1.5rem;">
+      ${content}
+    </div>
+    <div style="display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap;">
+      <button onclick="this.parentElement.parentElement.remove()" style="
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 0.6rem 1.2rem;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        font-size: 0.9rem;
+      ">Got it!</button>
+      ${showManualBookmark ? `
+        <button onclick="window.open('https://mynotepad-lac.vercel.app/', '_blank')" style="
+          background: #f8f9fa;
+          color: #2c3e50;
+          border: 2px solid #dee2e6;
+          padding: 0.6rem 1.2rem;
+          border-radius: 8px;
+          font-weight: 600;
+          cursor: pointer;
+          font-size: 0.9rem;
+        ">Open in New Tab</button>
+      ` : ''}
+    </div>
+  `;
 
   document.body.appendChild(instructions);
 
-  // Auto-dismiss after 10 seconds
+  // Auto-dismiss after 15 seconds for detailed instructions
   setTimeout(() => {
-    instructions.remove();
-  }, 10000);
+    if (instructions.parentElement) {
+      instructions.remove();
+    }
+  }, 15000);
 }
 
 // Check if iOS device
