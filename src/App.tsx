@@ -454,254 +454,185 @@ function App() {
   };
 
   const handlePWAInstall = () => {
-    console.log('Install button clicked');
+    console.log('Install button clicked - using direct installation method');
 
-    // Check if app is already installed
-    if (isStandalone()) {
-      alert('App is already installed!');
-      return;
-    }
-
-    // Try to trigger the install prompt directly from the PWA system
-    const installEvent = (window as any).deferredPrompt;
-    console.log('Deferred prompt available:', !!installEvent);
-
-    if (installEvent) {
-      console.log('Triggering install prompt...');
-      installEvent.prompt();
-      installEvent.userChoice.then((choice: any) => {
-        console.log('User choice:', choice.outcome);
-        (window as any).deferredPrompt = null;
-        // Remove any existing banners
-        document.getElementById('pwa-install-banner')?.remove();
-
-        if (choice.outcome === 'accepted') {
-          console.log('User accepted the install');
-        } else {
-          console.log('User dismissed the install');
-        }
-      }).catch((error: any) => {
-        console.error('Install prompt error:', error);
-      });
-    } else {
-      console.log('No deferred prompt available, attempting simple installation');
-      // Try simple installation methods first
-      attemptSimpleInstall();
-    }
+    // Direct installation - no PWA dependencies
+    installAppDirectly();
   };
 
-  const attemptSimpleInstall = () => {
-    console.log('Attempting simple installation...');
-
-    // Detect browser/platform for simple installation
+  const installAppDirectly = () => {
     const userAgent = navigator.userAgent;
+    const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(userAgent);
     const isIOS = /iPad|iPhone|iPod/.test(userAgent);
     const isAndroid = /Android/.test(userAgent);
-    const isChrome = /Chrome/.test(userAgent) && /Google Inc/.test(navigator.vendor);
-    const isSafari = /Safari/.test(userAgent) && !/Chrome/.test(userAgent);
-
-    // Try to add to home screen programmatically (works on some Android browsers)
-    if (isAndroid && 'beforeinstallprompt' in window) {
-      // Some Android browsers support this even without the event firing
-      const installEvent = (window as any).beforeinstallprompt;
-      if (installEvent) {
-        installEvent.prompt();
-        return;
-      }
-    }
-
-    // For iOS Safari - try to trigger the Share menu programmatically
-    if (isIOS && isSafari) {
-      // Create a temporary link to trigger the share menu
-      const link = document.createElement('a');
-      link.href = window.location.href;
-      link.style.display = 'none';
-      document.body.appendChild(link);
-
-      // Try to trigger share menu (this might work on some iOS versions)
-      if (navigator.share) {
-        navigator.share({
-          title: 'PDF Note Taking App',
-          text: 'Install this PDF annotation app',
-          url: window.location.href
-        }).catch(() => {
-          // If share fails, show simple instruction
-          showSimpleInstallInstruction('Tap the Share button (⬆️) then "Add to Home Screen"');
-        });
-      } else {
-        showSimpleInstallInstruction('Tap the Share button (⬆️) then "Add to Home Screen"');
-      }
-
-      document.body.removeChild(link);
-      return;
-    }
-
-    // For Chrome on Android - try manifest-based installation
-    if (isAndroid && isChrome) {
-      // Try to use the manifest for installation
-      if ('getInstalledRelatedApps' in navigator) {
-        (navigator as any).getInstalledRelatedApps().then((apps: any[]) => {
-          if (apps.length === 0) {
-            createDesktopShortcut();
-          } else {
-            alert('App is already installed!');
-          }
-        });
-      } else {
-        createDesktopShortcut();
-      }
-      return;
-    }
-
-    // For all browsers - create a desktop shortcut/bookmark
-    createDesktopShortcut();
-  };
-
-  const createDesktopShortcut = () => {
-    console.log('Creating desktop shortcut...');
-
-    const userAgent = navigator.userAgent;
-    const isIOS = /iPad|iPhone|iPod/.test(userAgent);
-    const isAndroid = /Android/.test(userAgent);
-    const isMobile = /Mobi|Android/i.test(userAgent);
-
-    // Create a link element that will act as our app shortcut
-    const shortcutLink = document.createElement('a');
-    shortcutLink.href = window.location.href;
-    shortcutLink.target = '_blank';
-
-    // Set attributes to make it feel like a native app
-    shortcutLink.rel = 'noopener noreferrer';
-
-    // Try different methods based on platform/browser
-
-    // Method 1: Try to create a bookmark/shortcut
-    if (document.execCommand) {
-      try {
-        // Create a bookmark (works in some browsers)
-        document.execCommand('createLink', false, window.location.href);
-        showSimpleInstallInstruction('✅ Shortcut created! Check your bookmarks or desktop.');
-        return;
-      } catch (e) {
-        console.log('Bookmark creation failed, trying other methods');
-      }
-    }
-
-    // Method 2: Create a downloadable shortcut file (for desktop browsers)
-    if (!isMobile) {
-      createDownloadableShortcut();
-      return;
-    }
-
-    // Method 3: For mobile browsers, guide user to add bookmark manually
-    if (isIOS) {
-      showSimpleInstallInstruction('Tap Share (⬆️) → Add to Home Screen for app-like experience');
-    } else if (isAndroid) {
-      showSimpleInstallInstruction('Tap menu (⋮) → Add to Home screen');
-    } else {
-      showSimpleInstallInstruction('Press Ctrl+D (Cmd+D on Mac) to bookmark this page');
-    }
-
-    // Method 4: Try to open in new window with app-like features
-    try {
-      const newWindow = window.open(
-        window.location.href,
-        'pdf-app',
-        'width=1200,height=800,scrollbars=yes,resizable=yes,status=yes,location=yes,toolbar=no,menubar=no'
-      );
-
-      if (newWindow) {
-        showSimpleInstallInstruction('✅ App opened in new window! You can bookmark this window.');
-        return;
-      }
-    } catch (e) {
-      console.log('Popup blocked or failed');
-    }
-
-    // Method 5: Fallback - create a simple instruction
-    showSimpleInstallInstruction('💡 Bookmark this page (Ctrl+D) for quick access to your PDF app!');
-  };
-
-  const createDownloadableShortcut = () => {
-    // Create a .url file for Windows or .webloc for Mac
     const isWindows = navigator.platform.toLowerCase().indexOf('win') > -1;
     const isMac = navigator.platform.toLowerCase().indexOf('mac') > -1;
 
+    // Desktop: Download shortcut file immediately
+    if (!isMobile) {
+      downloadShortcutFile(isWindows, isMac);
+      return;
+    }
+
+    // Mobile: Open in app-like window + show instructions
+    if (isIOS) {
+      openAppWindow();
+      showInstallModal('iOS Installation', 
+        '1. Tap the Share button (⬆️) at the bottom\n' +
+        '2. Scroll down and tap "Add to Home Screen"\n' +
+        '3. Tap "Add" to install\n\n' +
+        'The app is now open in a new window - you can bookmark it!');
+    } else if (isAndroid) {
+      openAppWindow();
+      showInstallModal('Android Installation',
+        '1. Tap the menu (⋮) in your browser\n' +
+        '2. Select "Add to Home screen" or "Install app"\n' +
+        '3. Tap "Add" or "Install"\n\n' +
+        'The app is now open in a new window - you can bookmark it!');
+    } else {
+      openAppWindow();
+      showInstallModal('Mobile Installation',
+        'Press Ctrl+D (or Cmd+D on Mac) to bookmark this page for quick access.\n\n' +
+        'The app is now open in a new window!');
+    }
+  };
+
+  const downloadShortcutFile = (isWindows: boolean, isMac: boolean) => {
     let shortcutContent = '';
     let filename = '';
     let mimeType = '';
 
     if (isWindows) {
-      // Create .url file for Windows
-      shortcutContent = `[InternetShortcut]\nURL=${window.location.href}\n`;
+      // Windows .url file
+      shortcutContent = `[InternetShortcut]\nURL=${window.location.href}\nIconFile=${window.location.href}\nIconIndex=0\n`;
       filename = 'PDF Note Taker.url';
       mimeType = 'text/plain';
     } else if (isMac) {
-      // Create .webloc file for Mac
-      shortcutContent = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n<key>URL</key>\n<string>${window.location.href}</string>\n</dict>\n</plist>`;
+      // Mac .webloc file
+      shortcutContent = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n\t<key>URL</key>\n\t<string>${window.location.href}</string>\n</dict>\n</plist>`;
       filename = 'PDF Note Taker.webloc';
       mimeType = 'application/xml';
     } else {
-      // For other systems, just create a text file with instructions
-      shortcutContent = `PDF Note Taking App\n\nURL: ${window.location.href}\n\nBookmark this URL in your browser for quick access.`;
-      filename = 'PDF-App-Shortcut.txt';
-      mimeType = 'text/plain';
+      // Linux/Other - HTML shortcut
+      shortcutContent = `<!DOCTYPE html>\n<html>\n<head>\n<meta http-equiv="refresh" content="0; url=${window.location.href}">\n<title>PDF Note Taker</title>\n</head>\n<body>\n<p><a href="${window.location.href}">Open PDF Note Taker</a></p>\n</body>\n</html>`;
+      filename = 'PDF Note Taker.html';
+      mimeType = 'text/html';
     }
 
-    // Create and download the file
+    // Create and download
     const blob = new Blob([shortcutContent], { type: mimeType });
     const url = URL.createObjectURL(blob);
-
     const link = document.createElement('a');
     link.href = url;
     link.download = filename;
     link.style.display = 'none';
-
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-
     URL.revokeObjectURL(url);
 
-    showSimpleInstallInstruction(`✅ Downloaded ${filename}! Save it to your desktop for quick app access.`);
+    // Also open in new window
+    openAppWindow();
+
+    // Show success message
+    showInstallModal('✅ Installation Complete!',
+      `Shortcut file "${filename}" has been downloaded!\n\n` +
+      `1. Find the file in your Downloads folder\n` +
+      `2. Move it to your Desktop for easy access\n` +
+      `3. Double-click to open your PDF app\n\n` +
+      `The app is also open in a new window!`);
   };
 
-  const showSimpleInstallInstruction = (message: string) => {
-    // Create a simple, non-intrusive notification
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-      position: fixed;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      padding: 1rem 2rem;
-      border-radius: 12px;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-      z-index: 10000;
-      font-size: 0.9rem;
-      text-align: center;
-      max-width: 90%;
-      cursor: pointer;
-    `;
+  const openAppWindow = () => {
+    // Open app in new window with app-like features
+    const features = [
+      'width=1200',
+      'height=800',
+      'scrollbars=yes',
+      'resizable=yes',
+      'status=yes',
+      'location=no',
+      'toolbar=no',
+      'menubar=no',
+      'titlebar=yes'
+    ].join(',');
 
-    notification.innerHTML = `
-      <div style="font-weight: 600; margin-bottom: 0.5rem;">📱 Install App</div>
-      <div>${message}</div>
-      <div style="margin-top: 0.5rem; font-size: 0.8rem; opacity: 0.9;">Click to dismiss</div>
-    `;
-
-    notification.onclick = () => notification.remove();
-    document.body.appendChild(notification);
-
-    // Auto-dismiss after 8 seconds
-    setTimeout(() => {
-      if (notification.parentElement) {
-        notification.remove();
+    try {
+      const newWindow = window.open(window.location.href, 'PDFNoteTaker', features);
+      if (newWindow) {
+        // Focus the new window
+        newWindow.focus();
+        console.log('App opened in new window');
       }
-    }, 8000);
+    } catch (e) {
+      console.log('Popup blocked - user can manually open in new tab');
+    }
   };
+
+  const showInstallModal = (title: string, message: string) => {
+    // Remove any existing modals
+    const existing = document.getElementById('install-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'install-modal';
+    modal.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+      padding: 20px;
+    `;
+
+    const content = document.createElement('div');
+    content.style.cssText = `
+        background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      max-width: 500px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      text-align: center;
+    `;
+
+    content.innerHTML = `
+      <h2 style="margin: 0 0 1rem 0; color: #667eea; font-size: 1.5rem;">${title}</h2>
+      <pre style="text-align: left; white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 0.95rem; line-height: 1.6; color: #2c3e50; background: #f8f9fa; padding: 1rem; border-radius: 8px; margin: 1rem 0;">${message}</pre>
+      <button id="install-modal-close" style="
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 0.75rem 2rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 1rem;
+        cursor: pointer;
+        margin-top: 1rem;
+      ">Got it!</button>
+    `;
+
+    modal.appendChild(content);
+    document.body.appendChild(modal);
+
+    // Close handlers
+    const closeBtn = content.querySelector('#install-modal-close');
+    closeBtn?.addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.remove();
+    });
+
+    // Auto-close after 15 seconds
+    setTimeout(() => {
+      if (modal.parentElement) modal.remove();
+    }, 15000);
+  };
+
 
   const zoomIn = () => {
     setHasManualZoom(true);
@@ -824,7 +755,7 @@ function App() {
             </button>
           </div>
         )}
-        <div className="header-controls">
+          <div className="header-controls">
           {!isStandalone() && (
             <button
               onClick={handlePWAInstall}
@@ -833,8 +764,8 @@ function App() {
             >
               📱 Install
             </button>
-          )}
-          {(mode === 'pdf' || mode === 'sketch' || mode === 'home') && (
+        )}
+        {(mode === 'pdf' || mode === 'sketch' || mode === 'home') && (
             <button
               onClick={() => setIsHamburgerMenuOpen(!isHamburgerMenuOpen)}
               className="hamburger-btn"
@@ -842,7 +773,7 @@ function App() {
             >
               ☰
             </button>
-          )}
+        )}
         </div>
       </header>
 
