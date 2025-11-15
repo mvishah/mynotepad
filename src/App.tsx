@@ -8,7 +8,7 @@ import SketchGallery from './components/SketchGallery';
 import type { DrawingPath, PenStyle } from './components/DrawingCanvas';
 import type { TextAnnotation } from './components/TextAnnotation';
 import { addToRecentFiles, saveAnnotatedFile } from './utils/fileStorage';
-import { isStandalone, showInstallBanner } from './pwaInstall';
+import { isStandalone } from './pwaInstall';
 import type { Sketch } from './utils/sketchStorage';
 import { saveSketch } from './utils/sketchStorage';
 import { getPenFavorites, savePenFavorite, deletePenFavorite, type PenFavorite } from './utils/penFavorites';
@@ -484,12 +484,120 @@ function App() {
         console.error('Install prompt error:', error);
       });
     } else {
-      console.log('No deferred prompt available, showing install banner');
-      // If no deferred prompt available, show the PWA install banner with instructions
-      showInstallBanner();
+      console.log('No deferred prompt available, attempting simple installation');
+      // Try simple installation methods first
+      attemptSimpleInstall();
     }
   };
 
+  const attemptSimpleInstall = () => {
+    console.log('Attempting simple installation...');
+
+    // Detect browser/platform for simple installation
+    const userAgent = navigator.userAgent;
+    const isIOS = /iPad|iPhone|iPod/.test(userAgent);
+    const isAndroid = /Android/.test(userAgent);
+    const isChrome = /Chrome/.test(userAgent) && /Google Inc/.test(navigator.vendor);
+    const isFirefox = /Firefox/.test(userAgent);
+    const isSafari = /Safari/.test(userAgent) && !/Chrome/.test(userAgent);
+
+    // Try to add to home screen programmatically (works on some Android browsers)
+    if (isAndroid && 'beforeinstallprompt' in window) {
+      // Some Android browsers support this even without the event firing
+      const installEvent = (window as any).beforeinstallprompt;
+      if (installEvent) {
+        installEvent.prompt();
+        return;
+      }
+    }
+
+    // For iOS Safari - try to trigger the Share menu programmatically
+    if (isIOS && isSafari) {
+      // Create a temporary link to trigger the share menu
+      const link = document.createElement('a');
+      link.href = window.location.href;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+
+      // Try to trigger share menu (this might work on some iOS versions)
+      if (navigator.share) {
+        navigator.share({
+          title: 'PDF Note Taking App',
+          text: 'Install this PDF annotation app',
+          url: window.location.href
+        }).catch(() => {
+          // If share fails, show simple instruction
+          showSimpleInstallInstruction('Tap the Share button (⬆️) then "Add to Home Screen"');
+        });
+      } else {
+        showSimpleInstallInstruction('Tap the Share button (⬆️) then "Add to Home Screen"');
+      }
+
+      document.body.removeChild(link);
+      return;
+    }
+
+    // For Chrome on Android - try manifest-based installation
+    if (isAndroid && isChrome) {
+      // Try to use the manifest for installation
+      if ('getInstalledRelatedApps' in navigator) {
+        (navigator as any).getInstalledRelatedApps().then((apps: any[]) => {
+          if (apps.length === 0) {
+            showSimpleInstallInstruction('Look for the install icon (+) in the address bar');
+          } else {
+            alert('App is already installed!');
+          }
+        });
+      } else {
+        showSimpleInstallInstruction('Look for the install icon (+) in the address bar');
+      }
+      return;
+    }
+
+    // For other browsers, show a simple bookmark instruction
+    if (isFirefox) {
+      showSimpleInstallInstruction('Press Ctrl+D to bookmark this page');
+    } else {
+      showSimpleInstallInstruction('Add this page to your bookmarks for quick access');
+    }
+  };
+
+  const showSimpleInstallInstruction = (message: string) => {
+    // Create a simple, non-intrusive notification
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 1rem 2rem;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+      z-index: 10000;
+      font-size: 0.9rem;
+      text-align: center;
+      max-width: 90%;
+      cursor: pointer;
+    `;
+
+    notification.innerHTML = `
+      <div style="font-weight: 600; margin-bottom: 0.5rem;">📱 Install App</div>
+      <div>${message}</div>
+      <div style="margin-top: 0.5rem; font-size: 0.8rem; opacity: 0.9;">Click to dismiss</div>
+    `;
+
+    notification.onclick = () => notification.remove();
+    document.body.appendChild(notification);
+
+    // Auto-dismiss after 8 seconds
+    setTimeout(() => {
+      if (notification.parentElement) {
+        notification.remove();
+      }
+    }, 8000);
+  };
 
   const zoomIn = () => {
     setHasManualZoom(true);
