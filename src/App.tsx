@@ -498,7 +498,6 @@ function App() {
     const isIOS = /iPad|iPhone|iPod/.test(userAgent);
     const isAndroid = /Android/.test(userAgent);
     const isChrome = /Chrome/.test(userAgent) && /Google Inc/.test(navigator.vendor);
-    const isFirefox = /Firefox/.test(userAgent);
     const isSafari = /Safari/.test(userAgent) && !/Chrome/.test(userAgent);
 
     // Try to add to home screen programmatically (works on some Android browsers)
@@ -543,23 +542,128 @@ function App() {
       if ('getInstalledRelatedApps' in navigator) {
         (navigator as any).getInstalledRelatedApps().then((apps: any[]) => {
           if (apps.length === 0) {
-            showSimpleInstallInstruction('Look for the install icon (+) in the address bar');
+            createDesktopShortcut();
           } else {
             alert('App is already installed!');
           }
         });
       } else {
-        showSimpleInstallInstruction('Look for the install icon (+) in the address bar');
+        createDesktopShortcut();
       }
       return;
     }
 
-    // For other browsers, show a simple bookmark instruction
-    if (isFirefox) {
-      showSimpleInstallInstruction('Press Ctrl+D to bookmark this page');
-    } else {
-      showSimpleInstallInstruction('Add this page to your bookmarks for quick access');
+    // For all browsers - create a desktop shortcut/bookmark
+    createDesktopShortcut();
+  };
+
+  const createDesktopShortcut = () => {
+    console.log('Creating desktop shortcut...');
+
+    const userAgent = navigator.userAgent;
+    const isIOS = /iPad|iPhone|iPod/.test(userAgent);
+    const isAndroid = /Android/.test(userAgent);
+    const isMobile = /Mobi|Android/i.test(userAgent);
+
+    // Create a link element that will act as our app shortcut
+    const shortcutLink = document.createElement('a');
+    shortcutLink.href = window.location.href;
+    shortcutLink.target = '_blank';
+
+    // Set attributes to make it feel like a native app
+    shortcutLink.rel = 'noopener noreferrer';
+
+    // Try different methods based on platform/browser
+
+    // Method 1: Try to create a bookmark/shortcut
+    if (document.execCommand) {
+      try {
+        // Create a bookmark (works in some browsers)
+        document.execCommand('createLink', false, window.location.href);
+        showSimpleInstallInstruction('✅ Shortcut created! Check your bookmarks or desktop.');
+        return;
+      } catch (e) {
+        console.log('Bookmark creation failed, trying other methods');
+      }
     }
+
+    // Method 2: Create a downloadable shortcut file (for desktop browsers)
+    if (!isMobile) {
+      createDownloadableShortcut();
+      return;
+    }
+
+    // Method 3: For mobile browsers, guide user to add bookmark manually
+    if (isIOS) {
+      showSimpleInstallInstruction('Tap Share (⬆️) → Add to Home Screen for app-like experience');
+    } else if (isAndroid) {
+      showSimpleInstallInstruction('Tap menu (⋮) → Add to Home screen');
+    } else {
+      showSimpleInstallInstruction('Press Ctrl+D (Cmd+D on Mac) to bookmark this page');
+    }
+
+    // Method 4: Try to open in new window with app-like features
+    try {
+      const newWindow = window.open(
+        window.location.href,
+        'pdf-app',
+        'width=1200,height=800,scrollbars=yes,resizable=yes,status=yes,location=yes,toolbar=no,menubar=no'
+      );
+
+      if (newWindow) {
+        showSimpleInstallInstruction('✅ App opened in new window! You can bookmark this window.');
+        return;
+      }
+    } catch (e) {
+      console.log('Popup blocked or failed');
+    }
+
+    // Method 5: Fallback - create a simple instruction
+    showSimpleInstallInstruction('💡 Bookmark this page (Ctrl+D) for quick access to your PDF app!');
+  };
+
+  const createDownloadableShortcut = () => {
+    // Create a .url file for Windows or .webloc for Mac
+    const isWindows = navigator.platform.toLowerCase().indexOf('win') > -1;
+    const isMac = navigator.platform.toLowerCase().indexOf('mac') > -1;
+
+    let shortcutContent = '';
+    let filename = '';
+    let mimeType = '';
+
+    if (isWindows) {
+      // Create .url file for Windows
+      shortcutContent = `[InternetShortcut]\nURL=${window.location.href}\n`;
+      filename = 'PDF Note Taker.url';
+      mimeType = 'text/plain';
+    } else if (isMac) {
+      // Create .webloc file for Mac
+      shortcutContent = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n<key>URL</key>\n<string>${window.location.href}</string>\n</dict>\n</plist>`;
+      filename = 'PDF Note Taker.webloc';
+      mimeType = 'application/xml';
+    } else {
+      // For other systems, just create a text file with instructions
+      shortcutContent = `PDF Note Taking App\n\nURL: ${window.location.href}\n\nBookmark this URL in your browser for quick access.`;
+      filename = 'PDF-App-Shortcut.txt';
+      mimeType = 'text/plain';
+    }
+
+    // Create and download the file
+    const blob = new Blob([shortcutContent], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.style.display = 'none';
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    URL.revokeObjectURL(url);
+
+    showSimpleInstallInstruction(`✅ Downloaded ${filename}! Save it to your desktop for quick app access.`);
   };
 
   const showSimpleInstallInstruction = (message: string) => {
